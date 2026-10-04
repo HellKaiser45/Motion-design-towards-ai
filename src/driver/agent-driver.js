@@ -28,7 +28,7 @@ export class AgentDriver {
     this._events = new EventEmitter();
     /** @private Map<string, {current:null, queue:[], blend?:string, fadeTime?:number}> */
     this._channels = new Map();
-    /** @private Map<pack-instance, {channel, fadeUntil}> fading instances */
+    /** @private Map<pack-instance, {channel, fadeLeft}> fading instances */
     this._fading = new Set();
 
     this._onTick = ({ dt }) => this._tick(dt);
@@ -36,7 +36,7 @@ export class AgentDriver {
   }
 
   on(name, fn) { return this._events.on(name, fn); }
-  off(name, fn) { this._events.off(name, fn); }
+  off(name, fn) { return this._events.off(name, fn); }
 
   /** Set a channel's default blend policy (used when a play() call omits blend). */
   setChannelBlend(channel, blend, fadeTime = 0.3) {
@@ -64,7 +64,7 @@ export class AgentDriver {
     if (blend === 'crossfade' && ch.current) {
       const fadeTime = opts.fadeTime ?? ch.fadeTime ?? 0.3;
       const old = ch.current;
-      old._fadeUntil = performance.now() + fadeTime * 1000;
+      old._fadeLeft = fadeTime; // seconds of LOGICAL time (dt-driven => seek/export-deterministic)
       this._fading.add(old);
     } else if (ch.current) {
       this._stopInstance(ch.current, channel); // interrupt
@@ -122,18 +122,18 @@ export class AgentDriver {
 
   /** @private per-frame advance */
   _tick(dt) {
-    const now = performance.now();
-    for (const [channel, ch] of this._channels) {
-      // advance + finish fading crossfaded instances (they must keep ticking
-      // through the fade window or they freeze mid-fade)
-      for (const inst of [...this._fading]) {
-        inst.pack.tick(dt, inst.rate ?? 1);
-        if (now >= inst._fadeUntil) {
-          this._fading.delete(inst);
-          inst.pack.stop();
-          this._events.emit('stop', { pack: inst.pack.name, channel: inst.channel });
-        }
+    // Fading (crossfaded-out) instances: advance ONCE per frame. (They used to be
+    // advanced inside the per-channel loop => N channels = N x speed + N x fade decay.)
+    for (const inst of [...this._fading]) {
+      inst.pack.tick(dt, inst.rate ?? 1);
+      inst._fadeLeft -= dt;
+      if (inst._fadeLeft <= 0) {
+        this._fading.delete(inst);
+        inst.pack.stop();
+        this._events.emit('stop', { pack: inst.pack.name, channel: inst.channel });
       }
+    }
+    for (const [channel, ch] of this._channels) {
       const cur = ch.current;
       if (cur) {
         cur.pack.tick(dt, cur.rate);
