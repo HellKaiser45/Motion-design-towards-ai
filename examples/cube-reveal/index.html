@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CU-13 · Boot Sequence — agent-stage</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #04060e; overflow: hidden; }
+    canvas { display: block; }
+    #err {
+      display: none; position: fixed; left: 0; right: 0; top: 0; z-index: 10;
+      font: 13px/1.5 ui-monospace, Menlo, monospace; color: #fff;
+      background: #b91c1c; padding: 8px 14px; white-space: pre-wrap;
+    }
+  </style>
+  <script>
+    (function () {
+      var el = document.createElement('pre');
+      el.id = 'err';
+      document.addEventListener('DOMContentLoaded', function () {
+        document.body.appendChild(el);
+      });
+      function show(msg) {
+        el.style.display = 'block';
+        el.textContent = msg;
+      }
+      window.addEventListener('error', function (e) {
+        show('ERROR: ' + (e.message || e.error) + (e.filename ? '\n' + e.filename + ':' + e.lineno : ''));
+      });
+      window.addEventListener('unhandledrejection', function (e) {
+        show('ERROR: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason));
+      });
+    })();
+  </script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+        "agent-stage/": "../../src/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <script type="module" src="./scene.js"></script>
+</body>
+</html>
