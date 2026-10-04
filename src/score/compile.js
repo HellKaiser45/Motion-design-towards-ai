@@ -25,8 +25,13 @@ function resolveTarget(stage, name, errors, path) {
   if (name === 'scene') return { target: stage.scene, kind: '3d' };
   if (isDomSelector(name)) {
     if (typeof document === 'undefined') return { kind: 'dom-noop', name };
-    const el = document.querySelector(name);
-    return el ? { target: el, kind: 'dom' } : { kind: 'dom-noop', message: `DOM selector "${name}" matched no element; cue is a no-op.` } };
+    // querySelectorAll (not querySelector): a selector like "#title .char"
+    // must match every element so stagger fans out across them; the singular
+    // form would animate only the first match.
+    const elements = Array.from(document.querySelectorAll(name));
+    return elements.length > 0
+      ? { kind: 'dom', elements }
+      : { kind: 'dom-noop', message: `DOM selector "${name}" matched no element; cue is a no-op.` };
   }
   errors.push(
     err(
@@ -78,7 +83,7 @@ function compileCue(stage, cue, errors, warnings) {
     }
   }
   const live3d = targets.filter((t) => t.kind === '3d').map((t) => t.target);
-  const liveDom = targets.filter((t) => t.kind === 'dom').map((t) => t.target);
+  const liveDom = targets.filter((t) => t.kind === 'dom').flatMap((t) => t.elements);
   if (live3d.length === 0 && liveDom.length === 0) return;
 
   function domVars() {
