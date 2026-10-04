@@ -103,10 +103,78 @@ export function createBridge(ctx) {
     return out;
   }
 
+  // ---- channels: named scalars bound to anything (shader uniform, morph
+  // influence, a custom getter/setter). Same accessor idea as object(): the
+  // proxy has one property, `value`, that reads/writes the live target.
+  const channelMap = new Map();
+
+  function bindPath(id, binding) {
+    const root = typeof binding.target === 'string' ? resolve(binding.target) : binding.target;
+    if (root === null || typeof root !== 'object') {
+      throw new Error(`Channel "${id}": target must be a registered name or an object.`);
+    }
+    const segments = String(binding.path).split('.');
+    const last = segments.pop();
+    let parent = root;
+    for (const seg of segments) parent = parent?.[seg];
+    if (parent === null || typeof parent !== 'object' || !(last in parent)) {
+      throw new Error(`Channel "${id}": path "${binding.path}" does not resolve on the target.`);
+    }
+    // The container is captured at bind time; replacing it later (e.g.
+    // assigning a new `uniforms` object) detaches the channel.
+    return { get: () => parent[last], set: (v) => { parent[last] = v; } };
+  }
+
+  /**
+   * channel(id, { target, path })  — bind to a dotted path on a registered
+   *   name or an object, e.g. { target: 'hero', path: 'material.uniforms.uProgress.value' }
+   *   or { target: mesh, path: 'morphTargetInfluences.0' }.
+   * channel(id, { get, set })      — bind to arbitrary functions.
+   * channel(id)                    — fetch an existing channel.
+   * Returns `{ value }`, tweenable by GSAP on stage.timeline.
+   */
+  function channel(id, binding) {
+    if (disposed) throw new Error('bridge is disposed.');
+    if (typeof id !== 'string' || id === '') throw new Error('channel id must be a non-empty string.');
+    if (binding === undefined) {
+      const existing = channelMap.get(id);
+      if (!existing) {
+        throw new Error(`Unknown channel "${id}". Known channels: ${[...channelMap.keys()].join(', ') || '(none)'}.`);
+      }
+      return existing;
+    }
+    if (channelMap.has(id)) throw new Error(`Channel "${id}" already exists.`);
+    let accessors;
+    if (binding && typeof binding.get === 'function' && typeof binding.set === 'function') {
+      accessors = { get: binding.get, set: binding.set };
+    } else if (binding && binding.target !== undefined && typeof binding.path === 'string' && binding.path !== '') {
+      accessors = bindPath(id, binding);
+    } else {
+      throw new Error(`Channel "${id}": binding must be { target, path } or { get, set }.`);
+    }
+    const proxy = {};
+    Object.defineProperty(proxy, 'value', {
+      enumerable: true,
+      configurable: true,
+      get: accessors.get,
+      set: accessors.set,
+    });
+    channelMap.set(id, proxy);
+    return proxy;
+  }
+
+  /** Plain JSON map of channel id -> current value. */
+  function channelValues() {
+    const out = {};
+    for (const [id, proxy] of channelMap) out[id] = proxy.value;
+    return out;
+  }
+
   function dispose() {
     disposed = true;
     proxies = new WeakMap();
+    channelMap.clear();
   }
 
-  return { object, snapshot, props: Object.keys(BRIDGE_PROPS), dispose };
+  return { object, snapshot, channel, channelValues, props: Object.keys(BRIDGE_PROPS), dispose };
 }
