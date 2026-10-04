@@ -1,0 +1,8 @@
+{
+  "submissions": [
+    { "id": "cube-reveal", "title": "CU-13 · Boot Sequence", "src": "examples/cube-reveal/", "duration": 10, "author": "agent:v2", "kind": "kit", "note": "Character reveal cinematic — animated face rendered live on the 3D cube" },
+    { "id": "nova-core", "title": "NOVA CORE — reactor reveal", "src": "examples/nova-core/", "duration": 12, "author": "agent:v2", "kind": "kit", "note": "12 s product-reveal cinematic: ignition, HUD, detonation, title" },
+    { "id": "hello-motion", "title": "Hello Motion — smallest piece", "src": "examples/hello-motion/", "duration": 6, "author": "agent:v2", "kind": "kit", "note": "30-line teaching example" },
+    { "id": "cube-agent", "title": "CU-13 interactive (v1 driver demo)", "src": "examples/cube-agent/", "author": "human:v1", "kind": "external", "note": "Self-contained interactive demo — use its own controls inside the player" }
+  ]
+}
