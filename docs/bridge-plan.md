@@ -30,7 +30,7 @@ loop and **without** losing the `seek(t)` determinism contract.
 - [x] 4. `animate` score verb: schema tokens, validation, compiler, tests
 - [x] 5. `bridge.channel()` custom bindings (uniforms etc.) + tests
 - [x] 6. `bridge.project(name)` 3D -> screen px (for DOM/SVG overlays) + tests
-- [ ] 7. Docs (AGENTS.md, README), example spec
+- [x] 7. Docs (AGENTS.md, README), example spec
 
 ## Log
 
@@ -41,3 +41,10 @@ loop and **without** losing the `seek(t)` determinism contract.
 - step 4: `animate` score verb (params = BRIDGE_PROPS, opacity 0..1, empty/missing `with` rejected, did-you-mean on property names, DOM targets warn); 10 tests (126 total).
 - step 5: `bridge.channel(id, {target,path}|{get,set})` + `channelValues()` — tween shader uniforms / morph influences / anything on the stage timeline; 8 tests (134 total).
 - step 6: `bridge.project(name)` -> `{ x, y, depth, onScreen }` in render px (normalized 0..1 when no size given); stage tracks the fitted view size on resize; 6 tests (140 total).
+- step 7: AGENTS.md + README sections, `examples/bridge-demo.json` (validated + compiled in a test); 1 test (141 total).
+
+## Not done / next
+
+- `animate` on DOM selectors (map x/y/scale/opacity onto the element) — currently a warning.
+- Overlay-follow helper: bind an SVG/DOM element to `project(name)` on timeline update.
+- Framer Motion `MotionValue` binding from the original proposal is not implemented; the accessor-proxy design would also fit a MotionValue (`.get()/.set()`) via `channel(id, { get, set })`.

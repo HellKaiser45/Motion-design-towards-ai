@@ -116,3 +116,20 @@ test('standalone compileScore rejects an animate cue with no valid property', ()
   assert.equal(res.errors[0].path, '/score/0/with');
   stage.dispose();
 });
+
+import { readFileSync } from 'node:fs';
+
+test('examples/bridge-demo.json validates, compiles without warnings, and animates', () => {
+  const spec = JSON.parse(readFileSync(new URL('../examples/bridge-demo.json', import.meta.url), 'utf8'));
+  const { ok, errors } = validateSpec(spec);
+  assert.equal(ok, true, JSON.stringify(errors));
+  const stage = createStage(spec);
+  assert.equal(stage.ok, true);
+  assert.equal(stage.scoreCompile.ok, true, JSON.stringify(stage.scoreCompile.errors));
+  assert.equal(stage.scoreCompile.warnings.length, 0);
+  assert.ok(stage.timeline.duration() >= 3);
+  stage.seek(stage.timeline.duration());
+  assert.ok(Math.abs(stage.objects.get('hero').position.y) < 1e-6);
+  assert.equal(stage.objects.get('sat').material.opacity, 1);
+  stage.dispose();
+});

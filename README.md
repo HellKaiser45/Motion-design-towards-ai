@@ -18,6 +18,10 @@ Phase 2B (SVG overlay) is complete:
 
 - **SVG overlay** (`src/svg/createOverlay.js`) — `createStage(spec)` builds an absolutely-positioned, pointer-events-none `<svg>` layer over the canvas when the spec has a top-level `svg` (alias `overlay`) section, exposed as `stage.svg`. Text items render as `<g id="...">` groups with built-in char/word splitting (no GSAP SplitText); shapes compile to flat parametrized SVG elements. The overlay only creates structure — animation comes from score cues routed to DOM selectors (`#id`, `.class`, `svg …`) and animated on the same stage timeline. In headless Node the overlay is a lightweight mock (`detached: true`) with the same API (`el`, `byId`, `charsOf`, `wordsOf`, `resize`, `destroy`). `stage.onResize(cb)` notifies overlay subscribers on canvas resize; the overlay is destroyed by `stage.dispose()`.
 
+Bridge engine is complete:
+
+- **Bridge** (`src/bridge/createBridge.js`, `stage.bridge`) — DOM-style handles for 3D objects (`x`, `y`, `z`, `rotateX/Y/Z`, `scale`, `opacity`) that GSAP tweens directly, with no second render loop (the stage timeline stays the only clock, so `seek(t)` stays deterministic). Adds the `animate` score verb (several properties in one JSON cue), `bridge.channel()` for shader uniforms / morph targets / custom accessors, and `bridge.project()` for 3D-to-screen coordinates. See `AGENTS.md` and `docs/bridge-plan.md`.
+
 The decal bridge and render/verdict tooling are planned.
 
 ## Run tests
