@@ -26,9 +26,11 @@ import { Mp4Encoder } from './backends/mp4-encoder.js';
 export class ExportManager {
   /**
    * @param {{stage:object, timeline:object, driver?:object, svgLayer:object,
-   *          engines?:object, compositor?:Compositor}} deps
+   *          engines?:object, compositor?:Compositor, anchorBridge?:object,
+   *          textureBridge?:object}} deps
    */
-  constructor({ stage, timeline, driver, svgLayer, engines, compositor }) {
+  constructor({ stage, timeline, driver, svgLayer, engines, compositor,
+    anchorBridge, textureBridge }) {
     if (!stage || !timeline || !svgLayer) {
       throw new Error('[agent-stage.exportManager] requires { stage, timeline, svgLayer }');
     }
@@ -38,6 +40,8 @@ export class ExportManager {
     this.svgLayer = svgLayer;
     this.engines = engines ?? null;
     this.compositor = compositor ?? new Compositor();
+    this.anchorBridge = anchorBridge ?? null;
+    this.textureBridge = textureBridge ?? null;
   }
 
   /**
@@ -72,7 +76,7 @@ export class ExportManager {
    * Run an export.
    * @param {'webm'|'png-seq'|'mp4'} format
    * @param {{duration?:number, fps?:number, width?:number, height?:number,
-   *          background?:string|null, packsToPlay?:Array|object,
+ *          background?:string|null, packsToPlay?:Array|object,
    *          schedule?:(t:number)=>void, onProgress?:(p:number)=>void,
    *          signal?:{cancelled:boolean}}} [opts]
    * @returns {Promise<{blob:Blob, filename:string, mimeType:string,
@@ -89,6 +93,7 @@ export class ExportManager {
 
     const common = {
       driver: this.driver, compositor: this.compositor,
+      anchorBridge: this.anchorBridge, textureBridge: this.textureBridge,
       duration, fps, width, height, background, onProgress, signal,
     };
 
@@ -146,6 +151,7 @@ export class ExportManager {
     return new FrameRenderer({
       stage: this.stage, timeline: this.timeline, driver: this.driver,
       svgLayer: this.svgLayer, engines: this.engines, compositor: this.compositor,
+      anchorBridge: this.anchorBridge, textureBridge: this.textureBridge,
     });
   }
 }
@@ -169,18 +175,25 @@ export function makePackScheduler(driver, packsToPlay) {
     }));
   } else if (packsToPlay && typeof packsToPlay === 'object') {
     entries = Object.entries(packsToPlay).map(([at, name]) => ({
-      name, at: parseFloat(at) || 0, started: false, instance: null,
+      name, at: parseFloat(at) || 0, started: false, stopped: false, instance: null,
     }));
   } else {
     throw new Error('[agent-stage.exportManager] packsToPlay must be an array or a {[tSec]: packName} object');
   }
   entries.sort((a, b) => a.at - b.at);
 
-  return function schedule(t) {
+    return function schedule(t) {
     for (const e of entries) {
-      if (e.instance && !e.stopped && t >= e.at + (e.endAt ?? Infinity)) {
+      if (e.instance && !e.stopped && t >= (e.endAt ?? Infinity)) {
         e.stopped = true;
-        driver.stop(e.channel ?? e.instance.channel);
+        // Only stop the channel if THIS instance is still the active one; if
+        // a later pack took over the channel, leaving it running is correct.
+        const channel = e.channel ?? e.instance.channel;
+        if (driver.active(channel) === e.instance) {
+          driver.stop(channel);
+        } else {
+          delete e.instance; // the channel moved on — drop our stale ref
+        }
       }
       if (e.started || t < e.at) continue;
       e.started = true;
@@ -193,9 +206,14 @@ export function makePackScheduler(driver, packsToPlay) {
         e.endAt = e.at + instance.pack.duration;
       }
     }
-    // Position every started, non-stopped instance at its local time.
+    // Position every started, non-stopped instance at its local time. Skip
+    // instances that were interrupted on their channel by a later entry — a
+    // dead instance's PropEngine would overwrite the live pack's pose on the
+    // shared Three.js object.
     for (const e of entries) {
       if (!e.instance || e.stopped) continue;
+      const channel = e.channel ?? e.instance.channel;
+      if (driver.active(channel) !== e.instance) continue;
       e.instance.pack.seek(t - e.at);
     }
   };
