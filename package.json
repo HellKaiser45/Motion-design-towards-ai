@@ -8,7 +8,7 @@
     "serve": "npx serve .",
     "render": "node tools/render.mjs",
     "check": "node tools/render.mjs examples/hello-motion --check && node tools/render.mjs examples/nova-core --check",
-    "test": "node tests/run.mjs"
+    "test": "node tests/run.mjs && node tests/pack-instance.test.mjs && node tests/driver.test.mjs"
   },
   "dependencies": { "three": "0.160.0" },
   "devDependencies": { "playwright-core": "^1.48.0" }

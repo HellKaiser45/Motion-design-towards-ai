@@ -26,7 +26,7 @@ import { packs, stateLabels, showSchedule } from './packs.js';
 
 const $ = (sel) => document.querySelector(sel);
 const assetUrl = (n) => new URL(`assets/${n}`, import.meta.url).href;
-const sleep = (ms) => Promise.resolve().then(() => new Promise((r) => setTimeout(r, ms)));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------------------------------------------------------------- assets ---
 const [faceMarkup, nametagMarkup, hudMarkup, holoMarkup] = await Promise.all(
