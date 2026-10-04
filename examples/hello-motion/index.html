@@ -1,5 +1,22 @@
 <!doctype html>
 <meta charset="utf-8"><title>hello-motion</title>
+<script>
+  // Visible failure: an empty page is never a mystery.
+  window.addEventListener('error', (e) => showErr(e.error || e.message));
+  window.addEventListener('unhandledrejection', (e) => showErr(e.reason));
+  function showErr(err) {
+    let el = document.getElementById('agent-stage-err');
+    if (!el) {
+      el = document.createElement('pre');
+      el.id = 'agent-stage-err';
+      Object.assign(el.style, { position: 'fixed', left: 0, right: 0, top: 0, margin: 0, padding: '10px 14px',
+        font: '12px/1.5 ui-monospace, monospace', color: '#ffb4b4', background: '#2a1114',
+        borderBottom: '1px solid #7a2b31', whiteSpace: 'pre-wrap', zIndex: 9999 });
+      document.body.appendChild(el);
+    }
+    el.textContent = (err && err.stack) ? String(err.stack) : String(err);
+  }
+</script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",

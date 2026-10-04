@@ -1,5 +1,6 @@
 // The smallest complete animation: copy this file, change the objects + score.
 import { createMotion } from 'agent-stage/kit/index.js';
+import { attachReview } from 'agent-stage/kit/review.js';
 
 createMotion({
   size: [1280, 720],
@@ -25,4 +26,4 @@ createMotion({
     { at: 0.0, dur: 6,   target: 'camera', azimuth: [-25, 25], distance: [9, 7], ease: 'easeInOutSine' },
     { at: 1.0, dur: 0.8, target: '#title .ch', stagger: 0.06, opacity: [0, 1], y: [24, 0], blur: [8, 0] },
   ],
-}).then((m) => m.play());
+}).then((m) => attachReview(m));

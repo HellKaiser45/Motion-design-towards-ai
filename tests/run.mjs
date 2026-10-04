@@ -2,6 +2,7 @@ import {
   easingNames, isEasing, suggest, applyEasing, cssLinear,
 } from '../src/core/easing.js';
 import { normalizePack } from '../src/driver/pack-compiler.js';
+import { loopTime } from '../src/kit/review.js';
 
 let pass = 0, fail = 0;
 
@@ -116,6 +117,22 @@ t('mixed tuple + canonical prop tracks', () => {
   const out = normalizePack(p).tracks[0].props;
   deepEq(out['scale:x'], [{ t: 0, v: 0 }, { t: 1, v: 2 }]);
   deepEq(out['rotation:y'], canonical);
+});
+
+// ── review helpers ──
+t('loopTime wraps t into [0, duration)', () => {
+  eq(loopTime(0, 12), 0);
+  eq(loopTime(5, 12), 5);
+  eq(loopTime(12, 12), 0);
+  eq(loopTime(13.5, 12), 1.5);
+});
+t('loopTime clamps negatives to 0', () => {
+  eq(loopTime(-1, 12), 11);
+  eq(loopTime(-13, 12), 11);
+});
+t('loopTime guards non-positive duration', () => {
+  eq(loopTime(3, 0), 0);
+  eq(loopTime(3, -2), 0);
 });
 
 console.log(`${pass} passed, ${fail} failed`);
