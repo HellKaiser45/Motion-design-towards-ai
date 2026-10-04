@@ -7,7 +7,11 @@
  *   'queue'     — enqueue FIFO; plays when the current instance finishes
  *   'crossfade' — start now, stop the old instance after fadeTime (0.3s)
  *
- * Emits: play / pause / stop / finished / queue-empty with {pack, channel}.
+ * Every play() obtains an ISOLATED instance from the pack definition via
+ * `def.createInstance(loopOverride)` (legacy fallback: the def itself), so
+ * concurrent plays never share mutable playback state.
+ *
+ * Emits: play / pause / stop / finished / queued / queue-empty with {pack, channel}.
  * Every play() returns { instance, finished }.
  */
 import { EventEmitter } from '../core/events.js';
@@ -28,8 +32,10 @@ export class AgentDriver {
     this._events = new EventEmitter();
     /** @private Map<string, {current:null, queue:[], blend?:string, fadeTime?:number}> */
     this._channels = new Map();
-    /** @private Map<pack-instance, {channel, fadeLeft}> fading instances */
+    /** @private Set<instance> fading instances (crossfaded out; still ticking) */
     this._fading = new Set();
+    /** @private WeakMap<instance, {rate, dur, fadeLeft, stopped}> per-instance driver state */
+    this._meta = new WeakMap();
 
     this._onTick = ({ dt }) => this._tick(dt);
     stage.on('tick', this._onTick);
@@ -48,12 +54,12 @@ export class AgentDriver {
    * Play a registered pack on its declared channel (or opts.channel override).
    * @param {string} packName
    * @param {{channel?:string, loop?:false|'repeat'|'pingpong', rate?:number,
-   *          blend?:'interrupt'|'queue'|'crossfade', fadeTime?:number}} [opts]
-   * @returns {{instance:object|null, finished:Promise}} instance is null when queued
+ *          blend?:'interrupt'|'queue'|'crossfade', fadeTime?:number, dur?:number}} [opts]
+ * @returns {{instance:object|null, finished:Promise}} instance is null when queued
    */
   play(packName, opts = {}) {
-    const pack = this.registry.getPack(packName);
-    const channel = opts.channel ?? pack.channel;
+    const def = this.registry.getPack(packName);
+    const channel = opts.channel ?? def.channel;
     const ch = this._channel(channel);
     const blend = opts.blend ?? ch.blend ?? 'interrupt';
 
@@ -63,14 +69,14 @@ export class AgentDriver {
 
     if (blend === 'crossfade' && ch.current) {
       const fadeTime = opts.fadeTime ?? ch.fadeTime ?? 0.3;
-      const old = ch.current;
-      old._fadeLeft = fadeTime; // seconds of LOGICAL time (dt-driven => seek/export-deterministic)
-      this._fading.add(old);
+      const meta = this._meta.get(ch.current);
+      if (meta) meta.fadeLeft = fadeTime; // seconds of LOGICAL time (dt-driven => seek/export-deterministic)
+      this._fading.add(ch.current);
     } else if (ch.current) {
       this._stopInstance(ch.current, channel); // interrupt
     }
 
-    const instance = this._startInstance(pack, channel, opts);
+    const instance = this._startInstance(def, channel, opts);
     ch.current = instance;
     this._events.emit('play', { pack: packName, channel });
     return { instance, finished: instance.finished };
@@ -78,8 +84,8 @@ export class AgentDriver {
 
   /** Enqueue a pack on a channel (FIFO; plays when the current one finishes). */
   queue(packName, opts = {}) {
-    const pack = this.registry.getPack(packName);
-    const channel = opts.channel ?? pack.channel;
+    const def = this.registry.getPack(packName);
+    const channel = opts.channel ?? def.channel;
     const ch = this._channel(channel);
     return this._enqueue(ch, channel, packName, opts);
   }
@@ -93,52 +99,63 @@ export class AgentDriver {
     return { instance: null, finished };
   }
 
-  /** @private create + start a running instance */
-  _startInstance(pack, channel, opts) {
-    pack.play({ loop: opts.loop });
-    const instance = {
-      pack,
-      channel,
+  /** @private create (or adopt) an instance and start it running */
+  _startInstance(def, channel, opts) {
+    const inst = typeof def.createInstance === 'function'
+      ? def.createInstance(opts.loop)
+      : def; // legacy fallback: the definition doubles as its own (shared) instance
+    inst.play(typeof def.createInstance === 'function'
+      ? {}
+      : (opts.loop !== undefined ? { loop: opts.loop } : {}));
+    const meta = {
       rate: opts.rate && opts.rate > 0 ? opts.rate : 1,
-      finished: pack.finished,
+      dur: null,
+      fadeLeft: 0,
+      stopped: false,
+      channel,
     };
-    // Looping packs never finish — never chain the handler (belt) and their
-    // finished promise is never-resolving (suspenders in CompiledPack).
-    if (pack.loop === false) {
-      instance.finished.then((result) => this._onInstanceFinished(instance, result));
+    this._meta.set(inst, meta);
+    if (typeof opts.dur === 'number' && opts.dur > 0) meta.dur = opts.dur;
+    // Exactly one finished handler per instance. Looping packs never finish —
+    // never chain the handler (belt) and their finished promise is never-resolving.
+    if (inst.loop === false) {
+      inst.finished.then((result) => this._onInstanceFinished(inst, result));
     }
-    if (typeof opts.dur === 'number' && opts.dur > 0) instance._dur = opts.dur;
-    return instance;
+    return inst;
   }
 
   /** @private stop an instance and clear its channel slot */
   _stopInstance(instance, channel) {
-    instance.pack.stop();
-    if (this._fading.has(instance)) this._fading.delete(instance);
-    const ch = this._channel(channel ?? instance.channel);
+    const meta = this._meta.get(instance);
+    if (!meta || meta.stopped) return;
+    meta.stopped = true;
+    instance.stop();
+    this._fading.delete(instance);
+    const effective = meta.channel ?? instance.channel;
+    const ch = this._channel(channel ?? effective);
     if (ch.current === instance) ch.current = null;
-    this._events.emit('stop', { pack: instance.pack.name, channel: instance.channel });
+    this._events.emit('stop', { pack: instance.name, channel: effective });
   }
 
   /** @private per-frame advance */
   _tick(dt) {
-    // Fading (crossfaded-out) instances: advance ONCE per frame. (They used to be
-    // advanced inside the per-channel loop => N channels = N x speed + N x fade decay.)
+    // Fading (crossfaded-out) instances: advance ONCE per frame, driven by dt
+    // (never performance.now() => seek/export-deterministic).
     for (const inst of [...this._fading]) {
-      inst.pack.tick(dt, inst.rate ?? 1);
-      inst._fadeLeft -= dt;
-      if (inst._fadeLeft <= 0) {
-        this._fading.delete(inst);
-        inst.pack.stop();
-        this._events.emit('stop', { pack: inst.pack.name, channel: inst.channel });
+      const meta = this._meta.get(inst);
+      inst.tick(dt, meta.rate);
+      meta.fadeLeft -= dt;
+      if (meta.fadeLeft <= 0) {
+        this._stopInstance(inst, meta.channel ?? inst.channel);
       }
     }
     for (const [channel, ch] of this._channels) {
       const cur = ch.current;
       if (cur) {
-        cur.pack.tick(dt, cur.rate);
+        const meta = this._meta.get(cur);
+        cur.tick(dt, meta.rate);
         // dur-bounded instances (say(dur)): stop once the pack passes dur
-        if (cur._dur != null && cur.pack.time >= cur._dur) {
+        if (meta.dur != null && cur.time >= meta.dur) {
           this._stopInstance(cur, channel);
         }
       }
@@ -163,8 +180,8 @@ export class AgentDriver {
     for (const [channel, ch] of this._channels) {
       if (which !== 'all' && channel !== which) continue;
       if (ch.current) {
-        ch.current.pack.pause();
-        this._events.emit('pause', { pack: ch.current.pack.name, channel });
+        ch.current.pause();
+        this._events.emit('pause', { pack: ch.current.name, channel });
       }
     }
   }
@@ -174,8 +191,8 @@ export class AgentDriver {
     for (const [channel, ch] of this._channels) {
       if (which !== 'all' && channel !== which) continue;
       if (ch.current) {
-        ch.current.pack.resume();
-        this._events.emit('play', { pack: ch.current.pack.name, channel });
+        ch.current.resume();
+        this._events.emit('play', { pack: ch.current.name, channel });
       }
     }
   }
@@ -183,14 +200,14 @@ export class AgentDriver {
   /** Seek every active instance's local playhead to t seconds. */
   seekAll(t) {
     for (const ch of this._channels.values()) {
-      if (ch.current) ch.current.pack.seek(t);
+      if (ch.current) ch.current.seek(t);
     }
   }
 
   /** @param {string} channel @returns {boolean} */
   isPlaying(channel) {
     const ch = this._channels.get(channel);
-    return !!(ch && ch.current && ch.current.pack.playing);
+    return !!(ch && ch.current && ch.current.playing);
   }
 
   /** @param {string} channel @returns {object|null} the active pack instance */
@@ -224,31 +241,32 @@ export class AgentDriver {
   }
 
   /**
-   * Minimal speech: plays a 'speak' pack (or opts.pack) and sets `text` into
-   * the mounted SVG element the pack declares via `"text": {svg, selector}`.
+   * Minimal speech: plays a 'speak' pack (or opts.pack) on an isolated instance
+   * and sets `text` into the mounted SVG element the pack declares via
+   * `"text": {svg, selector}`. dur-bounds it when opts.dur is given.
    * No speak pack registered -> no-op with a console warning.
    * @param {string} text
-   * @param {{pack?:string, dur?:number}} [opts]
+   * @param {{pack?:string, dur?:number, channel?:string}} [opts]
    */
   say(text, opts = {}) {
-    let pack;
+    let def;
     try {
-      pack = this.registry.getPack(opts.pack ?? 'speak');
+      def = this.registry.getPack(opts.pack ?? 'speak');
     } catch {
       console.warn('[agent-stage.driver] say(): no speak pack registered — no-op');
       return null;
     }
-    if (pack.text) {
-      const svg = this.registry.svgLayer.get(pack.text.svg);
-      const el = svg?.querySelector(pack.text.selector);
+    if (def.text) {
+      const svg = this.registry.svgLayer.get(def.text.svg);
+      const el = svg?.querySelector(def.text.selector);
       if (el) el.textContent = text;
     }
-    const channel = opts.channel ?? pack.channel ?? 'speak';
+    const channel = opts.channel ?? def.channel ?? 'speak';
     const ch = this._channel(channel);
     if (ch.current) this._stopInstance(ch.current, channel);
-    const instance = this._startInstance(pack, channel, { dur: opts.dur });
+    const instance = this._startInstance(def, channel, { dur: opts.dur });
     ch.current = instance;
-    this._events.emit('play', { pack: pack.name, channel });
+    this._events.emit('play', { pack: def.name, channel });
     return { instance, finished: instance.finished };
   }
 
@@ -262,11 +280,20 @@ export class AgentDriver {
     return ch;
   }
 
-  /** @private called when an instance's finished promise resolves */
+  /**
+   * @private called when an instance's finished promise resolves.
+   * Starts the next queued instance via the SAME _startInstance path (which
+   * attaches the single finished handler). A stale call (instance no longer
+   * the channel's current, or already stopped) is a no-op.
+   */
   _onInstanceFinished(instance, result) {
-    const ch = this._channel(instance.channel);
-    if (ch.current === instance) ch.current = null;
-    this._events.emit('finished', { pack: instance.pack.name, channel: instance.channel, ...result });
+    const meta = this._meta.get(instance);
+    if (!meta || meta.stopped) return;
+    const channel = meta.channel ?? instance.channel;
+    const ch = this._channel(channel);
+    if (ch.current !== instance) return;
+    ch.current = null;
+    this._events.emit('finished', { pack: instance.name, channel, ...result });
     const next = ch.queue.shift();
     if (next) {
       const pack = this.registry.getPack(next.packName);
@@ -274,11 +301,8 @@ export class AgentDriver {
       ch.current = inst;
       this._events.emit('play', { pack: next.packName, channel: next.channel });
       next.resolveFin(inst.finished);
-      if (inst.pack.loop === false) {
-        inst.finished.then((r) => this._onInstanceFinished(inst, r));
-      }
     } else {
-      this._events.emit('queue-empty', { pack: null, channel: instance.channel });
+      this._events.emit('queue-empty', { pack: null, channel });
     }
   }
 }
