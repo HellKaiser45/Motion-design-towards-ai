@@ -5,6 +5,8 @@ import { BACKGROUND_PRESETS } from '../spec/schema.js';
 import { buildObject } from '../objects/buildObject.js';
 import { createCamera } from '../camera/createCamera.js';
 import { createLights } from '../lights/createLights.js';
+import { createOverlay } from '../svg/createOverlay.js';
+import { compileScore as compileCues } from '../score/compile.js';
 
 // Probed per createStage call instead of memoized at module level: caching a
 // module-level boolean let test stubs poison each other through it.
@@ -152,19 +154,64 @@ export function createStage(spec, options = {}) {
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    return { width: w, height: h };
+  }
+
+  // Overlay subscribers are notified with the fitted size when available
+  // (browser-managed resize), or with undefined otherwise (headless).
+  const resizeCallbacks = new Set();
+  function notifyResize(size) {
+    for (const cb of resizeCallbacks) cb(size);
   }
 
   let resizeHandler = null;
   if (browserManaged && typeof window !== 'undefined') {
     resizeHandler = () => updateRenderSize();
     window.addEventListener('resize', resizeHandler);
-    updateRenderSize();
   }
+
+  function updateRenderSizeWithNotify() {
+    if (!renderer || !browserManaged || typeof window === 'undefined') return;
+    const fitted = updateRenderSize();
+    if (fitted) notifyResize(fitted);
+  }
+  if (resizeHandler) updateRenderSizeWithNotify();
+
+  function onResize(cb) {
+    if (typeof cb !== 'function') return () => {};
+    resizeCallbacks.add(cb);
+    return () => resizeCallbacks.delete(cb);
+  }
+
+  // Overlay layer (structure only; animation comes from score cues).
+  // Created and mounted BEFORE the score compiles so DOM-selector cues can
+  // resolve real elements at compile time.
+  const svgSpec = spec.svg ?? spec.overlay;
+  const svg = svgSpec ? createOverlay(null, svgSpec) : null;
+  let autoAttachedOverlay = null;
+  if (svg && display.mount === 'body' && typeof document !== 'undefined' && document.body) {
+    // Appended after the canvas, so DOM order stacks the overlay on top
+    // (both are positioned elements; no z-index needed).
+    document.body.appendChild(svg.el);
+    autoAttachedOverlay = svg.el;
+  }
+  if (svg) onResize((size) => svg.resize(size));
 
   // Single source of truth for time: everything animates on this one timeline.
   // It is always created, even in headless Node, so Phase 2's score compiler
   // can target `stage.timeline` regardless of rendering environment.
   const timeline = gsap.timeline({ paused: true });
+
+  const stage = { timeline, objects, lights, camera, scene };
+  function compileScore(score) {
+    return compileCues(stage, score);
+  }
+
+  // Score compile result (ok/errors/warnings); always present as a contract,
+  // empty when the spec has no score.
+  const scoreCompile = spec.score
+    ? compileScore(normalized.score)
+    : { ok: true, errors: [], warnings: [], duration: 0 };
 
   let disposed = false;
   let tickerCallback = null;
@@ -232,6 +279,16 @@ export function createStage(spec, options = {}) {
       window.removeEventListener('resize', resizeHandler);
       resizeHandler = null;
     }
+    if (resizeCallbacks) resizeCallbacks.clear();
+    if (svg) {
+      // svg.destroy() calls el.remove(); safe even when the overlay was never
+      // attached (el.remove() no-ops without a parentNode).
+      svg.destroy();
+    }
+    if (autoAttachedOverlay) {
+      autoAttachedOverlay.remove();
+      autoAttachedOverlay = null;
+    }
     if (autoAttachedCanvas) {
       autoAttachedCanvas.remove();
       autoAttachedCanvas = null;
@@ -247,6 +304,20 @@ export function createStage(spec, options = {}) {
     timeline,
     objects,
     lights,
+    /**
+     * SVG overlay layer (Phase 2B).
+     * - null when the spec has no `svg` section.
+     * - When `display.mount === 'body'` (and a DOM is available) the overlay
+     *   element is auto-appended to document.body, on top of the canvas;
+     *   dispose() removes it exactly once.
+     * - When `display.mount` is not 'body', the overlay stays detached —
+     *   callers mount `stage.svg.el` themselves.
+     * - Headless (no DOM): a mock overlay with `detached: true` is returned.
+     */
+    svg,
+    onResize,
+    scoreCompile,
+    compileScore,
     play,
     pause,
     seek,

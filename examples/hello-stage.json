@@ -16,5 +16,27 @@
       "type": "box",
       "material": { "preset": "neon", "color": "#22d3ee" }
     }
+  ],
+  "svg": {
+    "fit": "cover",
+    "text": [
+      {
+        "id": "title",
+        "content": "agent stage",
+        "split": "char",
+        "x": 40,
+        "y": 80,
+        "size": 48,
+        "weight": 700,
+        "color": "#e2e8f0"
+      }
+    ]
+  },
+  "score": [
+    { "do": "spin", "to": "hero", "at": 0, "with": { "axis": "y", "speed": 1.2 } },
+    { "do": "move-to", "to": "hero", "at": 0, "dur": 1, "ease": "power2.out", "with": { "x": 0, "y": 2, "z": 0 } },
+    { "do": "move-to", "to": "hero", "at": 1, "dur": 1, "ease": "power2.in", "with": { "x": 0, "y": 0, "z": 0 } },
+    { "do": "fade", "to": "#title .char", "at": 0.5, "dur": 1, "stagger": 0.05, "with": { "opacity": 0.4 } },
+    { "do": "color-to", "to": "hero", "at": 1.5, "dur": 1, "ease": "sine.inOut", "with": { "hex": "#a78bfa" } }
   ]
 }

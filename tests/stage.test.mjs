@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import { createStage, validateSpec, normalizeSpec, schema, describeTokens } from '../src/index.js';
+import { MockElement } from '../src/svg/createOverlay.js';
 import gsap from 'gsap';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -73,16 +74,12 @@ test('glass material is transparent with transmission 0.9', () => {
 
 test('buildObject applies position/rotation/scale and geometry params', () => {
   const stage = createStage({
-    objects: [
-      {
-        name: 'b',
-        type: 'box',
-        params: { width: 2, height: 3, depth: 4 },
-        position: [1, 2, 3],
-        rotation: [0.1, 0.2, 0.3],
-        scale: 2,
-      },
-    ],
+    objects: [{ name: 'b', type: 'box',
+      params: { width: 2, height: 3, depth: 4 },
+      position: [1, 2, 3],
+      rotation: [0.1, 0.2, 0.3],
+      scale: 2,
+    }],
   });
   const mesh = stage.objects.get('b');
   assert.deepEqual([...mesh.position.toArray()], [1, 2, 3]);
@@ -211,6 +208,76 @@ test('createStage rejects prototype-chain background without corrupting the stag
   });
   assert.equal(stage.ok, false);
   assert.ok(stage.errors.some((e) => e.path === '/meta/background'));
+});
+
+// SVG overlay mount stubs: overlay uses createElementNS + body.appendChild.
+// querySelector returns null so DOM-selector score cues compile as no-ops.
+function installOverlayDom() {
+  const realDocument = globalThis.document;
+  const fakeCanvas = () => ({ style: {}, getContext: () => ({}), remove() { this.removed = true; } });
+  const body = new MockElement('body');
+  globalThis.document = {
+    createElement: () => fakeCanvas(),
+    createElementNS: () => new MockElement('svg'),
+    querySelector: () => null,
+    body,
+  };
+  return { body, restore() { globalThis.document = realDocument; } };
+}
+
+test('svg overlay with mount "body" is auto-appended to document.body on top of the canvas', () => {
+  const dom = installOverlayDom();
+  try {
+    const stage = createStage({
+      svg: { text: [{ id: 't', content: 'hi', split: 'char', x: 10, y: 20 }] },
+      objects: [{ name: 'b', type: 'box' }],
+    });
+    assert.equal(stage.ok, true);
+    assert.equal(stage.svg.detached, false);
+    assert.ok(dom.body.children.includes(stage.canvas), 'canvas in body');
+    assert.ok(dom.body.children.includes(stage.svg.el), 'overlay in body');
+    assert.ok(dom.body.children.indexOf(stage.svg.el) > dom.body.children.indexOf(stage.canvas), 'overlay after canvas');
+    stage.dispose();
+  } finally {
+    dom.restore();
+  }
+});
+
+test('svg overlay with mount other than "body" is built but stays detached', () => {
+  const dom = installOverlayDom();
+  try {
+    const stage = createStage({
+      display: { mount: 'none' },
+      svg: { text: [{ id: 't', content: 'hi', split: 'char', x: 10, y: 20 }] },
+      objects: [{ name: 'b', type: 'box' }],
+    });
+    assert.equal(stage.ok, true);
+    assert.ok(stage.svg, 'overlay built');
+    assert.ok(stage.svg.el, 'overlay element exists');
+    assert.ok(!dom.body.children.includes(stage.svg.el), 'overlay NOT in body');
+    assert.ok(!dom.body.children.includes(stage.canvas), 'canvas also detached');
+    stage.dispose();
+    assert.ok(!dom.body.children.includes(stage.svg.el));
+  } finally {
+    dom.restore();
+  }
+});
+
+test('dispose removes the auto-attached overlay from body exactly once', () => {
+  const dom = installOverlayDom();
+  try {
+    const stage = createStage({
+      svg: { text: [{ id: 't', content: 'hi', split: 'char', x: 10, y: 20 }] },
+      objects: [{ name: 'b', type: 'box' }],
+    });
+    assert.ok(dom.body.children.includes(stage.svg.el));
+    stage.dispose();
+    assert.ok(!dom.body.children.includes(stage.svg.el), 'overlay removed from body');
+    assert.ok(stage.svg.destroyed);
+    assert.doesNotThrow(() => stage.dispose(), 'double dispose is safe');
+  } finally {
+    dom.restore();
+  }
 });
 
 test('validateSpec + normalizeSpec round-trip (frozen contract still works)', () => {
