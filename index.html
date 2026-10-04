@@ -22,8 +22,8 @@
 <script type="importmap">
 {
   "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
     "agent-stage/": "./src/"
   }
 }
@@ -198,8 +198,7 @@
       { t: 0.6, opacity: 0.35, transform: 'translateY(4px)', ease: 'easeOutQuad' },
       { t: 1.2, opacity: 1, transform: 'translateY(0px)', ease: 'easeOutCubic' },
       { t: 1.8, opacity: 0.35, transform: 'translateY(4px)', ease: 'easeOutQuad' },
-      { t: 2.4, opacity: 1, transform: 'translateY(0px)' }],
-    options: { fill: 'both' }
+      { t: 2.4, opacity: 1, transform: 'translateY(0px)' }],    options: { fill: 'both' }
   }), { begin: 0.6 });
 
   const smileTrack = timeline.add(smil.compile({
