@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createBridge } from '../bridge/createBridge.js';
 import {
   SCORE_VERBS,
   SCORE_EASES,
@@ -177,6 +178,20 @@ function compileCue(stage, cue, errors, warnings) {
           at,
         );
       }
+      break;
+    }
+    case 'animate': {
+      // Several DOM-style properties in one cue, tweened on bridge proxies.
+      // Unknown keys are already rejected by validation; filter defensively so
+      // a standalone compileScore call cannot tween an arbitrary property.
+      const vars = {};
+      for (const k of Object.keys(SCORE_VERBS.animate.params)) if (k in withParams) vars[k] = withParams[k];
+      if (Object.keys(vars).length === 0) {
+        errors.push(err(`${path}/with`, 'animate needs at least one valid property.'));
+        return;
+      }
+      const bridge = stage.bridge ?? createBridge(stage);
+      tl.to(live3d.map((o) => bridge.object(o)), { ...vars, ...base }, at);
       break;
     }
     case 'look-at': {

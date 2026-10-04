@@ -105,18 +105,6 @@ export const DEFAULTS = Object.freeze({
   }),
 });
 
-// Score cue vocabulary (Phase 2A). Params are described as plain strings so
-// the vocabulary stays JSON-emittable via describeTokens().
-export const SCORE_VERBS = Object.freeze({
-  'move-to': Object.freeze({ props: 'position', params: Object.freeze({ x: 'number', y: 'number', z: 'number' }) }),
-  rotate: Object.freeze({ props: 'rotation (radians)', params: Object.freeze({ x: 'number', y: 'number', z: 'number' }) }),
-  'scale-to': Object.freeze({ props: 'scale', params: Object.freeze({ x: 'number', y: 'number', z: 'number' }) }),
-  spin: Object.freeze({ props: 'rotation (continuous)', params: Object.freeze({ axis: "'x' | 'y' | 'z'", speed: 'number, radians per second' }) }),
-  fade: Object.freeze({ props: 'material.opacity (3D) | element opacity (DOM)', params: Object.freeze({ opacity: 'number 0..1' }) }),
-  'color-to': Object.freeze({ props: 'material.color (3D) | element color (DOM)', params: Object.freeze({ hex: "'#rrggbb'" }) }),
-  'look-at': Object.freeze({ props: 'object.lookAt via onUpdate', params: Object.freeze({ x: 'number', y: 'number', z: 'number', target: "object name — look at that object's position" }) }),
-});
-
 // Bridge vocabulary (DOM-style property names for 3D objects). The names are
 // the contract: src/bridge/createBridge.js must implement exactly these keys.
 // Rotations are radians (same unit as the `rotate` verb).
@@ -132,6 +120,29 @@ export const BRIDGE_PROPS = Object.freeze({
   scaleY: 'scale.y',
   scaleZ: 'scale.z',
   opacity: 'material.opacity 0..1 (objects with a material; reads 1 otherwise)',
+});
+
+// Score cue vocabulary (Phase 2A). Params are described as plain strings so
+// the vocabulary stays JSON-emittable via describeTokens().
+export const SCORE_VERBS = Object.freeze({
+  'move-to': Object.freeze({ props: 'position', params: Object.freeze({ x: 'number', y: 'number', z: 'number' }) }),
+  rotate: Object.freeze({ props: 'rotation (radians)', params: Object.freeze({ x: 'number', y: 'number', z: 'number' }) }),
+  'scale-to': Object.freeze({ props: 'scale', params: Object.freeze({ x: 'number', y: 'number', z: 'number' }) }),
+  spin: Object.freeze({ props: 'rotation (continuous)', params: Object.freeze({ axis: "'x' | 'y' | 'z'", speed: 'number, radians per second' }) }),
+  fade: Object.freeze({ props: 'material.opacity (3D) | element opacity (DOM)', params: Object.freeze({ opacity: 'number 0..1' }) }),
+  'color-to': Object.freeze({ props: 'material.color (3D) | element color (DOM)', params: Object.freeze({ hex: "'#rrggbb'" }) }),
+  animate: Object.freeze({
+    props: 'bridge properties (DOM-style, several at once)',
+    params: Object.freeze(
+      Object.fromEntries(
+        Object.keys(BRIDGE_PROPS).map((k) => [
+          k,
+          k === 'opacity' ? 'number 0..1' : k.startsWith('rotate') ? 'number, radians' : 'number',
+        ]),
+      ),
+    ),
+  }),
+  'look-at': Object.freeze({ props: 'object.lookAt via onUpdate', params: Object.freeze({ x: 'number', y: 'number', z: 'number', target: "object name — look at that object's position" }) }),
 });
 
 // Reserved non-registry targets for cue routing.
@@ -267,7 +278,7 @@ export function describeTokens() {
         repeat: 'integer >= -1; -1 or values above repeatCap are clamped to repeatCap with a warning',
         pingpong: 'boolean; maps to GSAP yoyo',
         stagger: 'number >= 0; applies when to is an array',
-        with: 'verb params, keys per scoreVerbs[verb].params',
+        with: 'verb params, keys per scoreVerbs[verb].params. `animate` requires at least one key (any bridgeProps name) and tweens them together on one cue; 3D targets only.',
       },
       objects: {
         name: 'unique non-empty string, required',

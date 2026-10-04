@@ -410,8 +410,8 @@ function validateCueParams(verb, params, path, errors, names) {
       }
     } else if (typeof v !== 'number' || !Number.isFinite(v)) {
       errors.push(err(`${path}/${key}`, `cue param "${key}" must be a finite number.`));
-    } else if (verb === 'fade' && (v < 0 || v > 1)) {
-      errors.push(err(`${path}/opacity`, 'fade opacity must be between 0 and 1.'));
+    } else if ((verb === 'fade' || verb === 'animate') && key === 'opacity' && (v < 0 || v > 1)) {
+      errors.push(err(`${path}/opacity`, `${verb} opacity must be between 0 and 1.`));
     }
   }
 }
@@ -487,6 +487,11 @@ function validateCue(cue, index, errors, names) {
   }
   if ('with' in cue) {
     if (verb) validateCueParams(verb, cue.with, `${path}/with`, errors, names);
+    if (verb === 'animate' && isPlainObject(cue.with) && Object.keys(cue.with).length === 0) {
+      errors.push(err(`${path}/with`, `animate needs at least one property. Valid: ${Object.keys(SCORE_VERBS.animate.params).join(', ')}.`));
+    }
+  } else if (verb === 'animate') {
+    errors.push(err(`${path}/with`, `animate requires "with" listing at least one property. Valid: ${Object.keys(SCORE_VERBS.animate.params).join(', ')}.`));
   }
 }
 

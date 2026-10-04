@@ -27,7 +27,7 @@ loop and **without** losing the `seek(t)` determinism contract.
 - [x] 1. Plan doc, fix `npm test` on Node >= 22
 - [x] 2. `src/bridge/createBridge.js` core (object proxies) + unit tests
 - [x] 3. Wire `stage.bridge` into `createStage`, export from package root
-- [ ] 4. `animate` score verb: schema tokens, validation, compiler, tests
+- [x] 4. `animate` score verb: schema tokens, validation, compiler, tests
 - [ ] 5. `bridge.channel()` custom bindings (uniforms etc.) + tests
 - [ ] 6. `bridge.project(name)` 3D -> screen px (for DOM/SVG overlays) + tests
 - [ ] 7. Docs (AGENTS.md, README), example spec
@@ -38,3 +38,4 @@ loop and **without** losing the `seek(t)` determinism contract.
 
 - step 2: `createBridge` core — accessor proxies, `snapshot`, `BRIDGE_PROPS` token + `describeTokens().bridgeProps`; 11 tests (113 total).
 - step 3: `stage.bridge` wired into `createStage` (disposed with the stage), `createBridge` + `BRIDGE_PROPS` exported from the package root; 3 tests (116 total). Note: GSAP rounds tweened values to ~1e-6 — compare with tolerance, as existing tests do.
+- step 4: `animate` score verb (params = BRIDGE_PROPS, opacity 0..1, empty/missing `with` rejected, did-you-mean on property names, DOM targets warn); 10 tests (126 total).
