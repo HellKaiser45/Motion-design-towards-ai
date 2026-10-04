@@ -15,7 +15,7 @@ import { WaapiEngine } from './engines/waapi-engine.js';
 import { SmilEngine } from './engines/smil-engine.js';
 import { AnchorBridge } from './bridges/anchor-bridge.js';
 import { TextureBridge } from './bridges/texture-bridge.js';
-import { compile as compilePack, CompiledPack } from './driver/pack-compiler.js';
+import { compile as compilePack, normalizePack, CompiledPack } from './driver/pack-compiler.js';
 import { Registry } from './driver/registry.js';
 import { AgentDriver } from './driver/agent-driver.js';
 import { Compositor } from './export/compositor.js';
@@ -88,6 +88,7 @@ export {
   AnchorBridge,
   TextureBridge,
   compilePack as compile,
+  normalizePack,
   CompiledPack,
   Registry,
   AgentDriver,

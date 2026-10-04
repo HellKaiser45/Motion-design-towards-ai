@@ -25,6 +25,11 @@
  *
  * Validation errors are thrown with clear messages: unknown engine, missing
  * svg/selector/target, empty keyframes, non-numeric t, empty tracks.
+ *
+ * COMPACT AUTHORING FORMS (normalized by normalizePack, also exported):
+ *   keyframe tuples   [0, 0]  [0.5, 1, 'easeOutCubic']   ->  {t, v, ease}
+ *   dotted channels   'position.y'                     ->  'position:y'
+ * The canonical form keeps working unchanged.
  */
 
 /**
@@ -37,6 +42,7 @@ export function compile(pack, ctx) {
   if (!pack || typeof pack !== 'object') {
     throw new Error('[agent-stage.packCompiler] compile() requires a pack object');
   }
+  pack = normalizePack(pack);
   if (typeof pack.name !== 'string' || !pack.name) {
     throw new Error('[agent-stage.packCompiler] pack.name (non-empty string) required');
   }
@@ -84,6 +90,38 @@ export function compile(pack, ctx) {
   if (duration <= 0) duration = 1; // degenerate packs still get a sensible length
 
   return new CompiledPack(pack.name, channel, duration, packLoop, pack.text ?? null, trackSpecs);
+}
+
+const CHANNELS = new Set(['x', 'y', 'z', 'w', 'r', 'g', 'b']);
+
+/**
+ * Accept the compact authoring forms an LLM naturally writes and rewrite them to
+ * the canonical schema (the canonical form keeps working unchanged):
+ *   keyframe tuples   [0, 0], [0.5, 1, 'easeOutCubic']   ->  {t, v, ease}
+ *   dotted channels   'position.y'                        ->  'position:y'
+ * Pure: returns a new pack, never mutates the input.
+ * @param {object} pack
+ */
+export function normalizePack(pack) {
+  if (!pack || !Array.isArray(pack.tracks)) return pack;
+  const tracks = pack.tracks.map((tr) => {
+    if (!tr || tr.engine !== 'prop' || !tr.props || typeof tr.props !== 'object') return tr;
+    const props = {};
+    for (const [key, kfs] of Object.entries(tr.props)) {
+      let k = key;
+      if (!k.includes(':')) {
+        const parts = k.split('.');
+        if (parts.length > 1 && CHANNELS.has(parts[parts.length - 1])) {
+          k = parts.slice(0, -1).join('.') + ':' + parts[parts.length - 1];
+        }
+      }
+      props[k] = Array.isArray(kfs)
+        ? kfs.map((kf) => (Array.isArray(kf) ? { t: kf[0], v: kf[1], ...(kf[2] ? { ease: kf[2] } : {}) } : kf))
+        : kfs;
+    }
+    return { ...tr, props };
+  });
+  return { ...pack, tracks };
 }
 
 /** @private validate + normalize one track into an engine spec */
