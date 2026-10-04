@@ -67,6 +67,7 @@ function createAgentStage(opts = {}) {
 
   const registry = new Registry({ svgLayer, threeLayer });
   registry.setContext(ctx);
+  ctx.registry = registry; // semantic target lookups (pack-compiler) need it
   const driver = new AgentDriver({ stage, timeline, registry, ctx });
   const anchorBridge = new AnchorBridge({ stage, threeLayer, svgLayer });
   const textureBridge = new TextureBridge({ stage, svgLayer, three: THREE });
