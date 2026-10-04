@@ -2,8 +2,14 @@
 <meta charset="utf-8"><title>NOVA CORE — agent-stage</title>
 <script>
   // Visible failure: an empty page is never a mystery.
-  window.addEventListener('error', (e) => showErr(e.error || e.message));
-  window.addEventListener('unhandledrejection', (e) => showErr(e.reason));
+  window.addEventListener('error', (e) => report(e.error || e.message));
+  window.addEventListener('unhandledrejection', (e) => report(e.reason));
+  function report(err) {
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'error', message: (err && err.stack) ? String(err.stack) : String(err) }, '*');
+    }
+    showErr(err);
+  }
   function showErr(err) {
     let el = document.getElementById('agent-stage-err');
     if (!el) {

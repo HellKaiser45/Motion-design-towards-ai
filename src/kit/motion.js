@@ -36,6 +36,7 @@ const OBJECT_PROPS = new Set([
 const CAMERA_PROPS = new Set(['azimuth', 'elevation', 'distance', 'fov', 'shake']);
 const FX_PROPS = new Set(['fade', 'flash', 'bloom']);
 const SVG_PROPS = new Set(['opacity', 'x', 'y', 'rotate', 'scale', 'scaleX', 'scaleY', 'blur', 'draw']);
+const MATERIAL_PROPS = new Set(['opacity', 'glow', 'color', 'burst']);
 
 /** deterministic per-axis hash noise (pure function of t) for camera shake */
 function hash1(n, s) {
@@ -431,6 +432,11 @@ export async function createMotion(spec) {
       scene.add(entry.node);
     }
   }
+  // groups have no material; material-ish props fan out to named descendants
+  const entryByNode = new Map();
+  for (const entry of named.values()) {
+    if (entry.node) entryByNode.set(entry.node, entry);
+  }
 
   // ---------- SVG layer ----------
   let svgRoot = null;
@@ -470,12 +476,7 @@ export async function createMotion(spec) {
   // ---------- post chain ----------
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(
-    new THREE.Vector2(RW, RH),
-    spec.bloom?.strength ?? 0.35,
-    spec.bloom?.radius ?? 0.4,
-    spec.bloom?.threshold ?? 0.92
-  );
+  const bloom = new THREE3Vector2placeholder(RW, RH);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
   composer.setSize(RW, RH);
@@ -799,6 +800,15 @@ export async function createMotion(spec) {
     }
     const entry = ref;
     const node = entry.node;
+    // groups have no material — fan material props out to every named descendant
+    if (MATERIAL_PROPS.has(prop) && !node.isPoints && !node.material) {
+      node.traverse((child) => {
+        if (child === node) return;
+        const childEntry = entryByNode.get(child);
+        if (childEntry && childEntry.kind === 'obj') apply(childEntry, prop, value);
+      });
+      return;
+    }
     switch (prop) {
       case 'scale': node.scale.setScalar(value); break;
       case 'scaleX': node.scale.x = value; break;

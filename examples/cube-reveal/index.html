@@ -21,6 +21,7 @@
         document.body.appendChild(el);
       });
       function show(msg) {
+        if (window.parent !== window) window.parent.postMessage({ type: 'error', message: msg }, '*');
         el.style.display = 'block';
         el.textContent = msg;
       }
