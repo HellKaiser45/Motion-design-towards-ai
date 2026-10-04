@@ -7,6 +7,7 @@ import { createCamera } from '../camera/createCamera.js';
 import { createLights } from '../lights/createLights.js';
 import { createOverlay } from '../svg/createOverlay.js';
 import { compileScore as compileCues } from '../score/compile.js';
+import { createBridge } from '../bridge/createBridge.js';
 
 // Probed per createStage call instead of memoized at module level: caching a
 // module-level boolean let test stubs poison each other through it.
@@ -202,7 +203,11 @@ export function createStage(spec, options = {}) {
   // can target `stage.timeline` regardless of rendering environment.
   const timeline = gsap.timeline({ paused: true });
 
-  const stage = { timeline, objects, lights, camera, scene };
+  // Bridge: DOM-style animation handles (x, rotateY, opacity, ...) for 3D
+  // objects. Created before the score compiles so cues can use it.
+  const bridge = createBridge({ objects, lights, camera, scene });
+
+  const stage = { timeline, objects, lights, camera, scene, bridge };
   function compileScore(score) {
     return compileCues(stage, score);
   }
@@ -270,6 +275,7 @@ export function createStage(spec, options = {}) {
     });
     scene.clear();
     objects.clear();
+    bridge.dispose();
     if (renderer) {
       renderer.dispose();
       renderer.forceContextLoss?.();
@@ -304,6 +310,12 @@ export function createStage(spec, options = {}) {
     timeline,
     objects,
     lights,
+    /**
+     * Bridge (DOM-style 3D handles): `bridge.object(name)` returns a proxy with
+     * x/y/z/rotateX-Z/scale/scaleX-Z/opacity that GSAP can tween directly on
+     * `stage.timeline`; `bridge.snapshot(name)` returns the current values.
+     */
+    bridge,
     /**
      * SVG overlay layer (Phase 2B).
      * - null when the spec has no `svg` section.

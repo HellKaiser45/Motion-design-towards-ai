@@ -121,3 +121,37 @@ test('dispose makes the bridge unusable', () => {
   bridge.dispose();
   assert.throws(() => bridge.object('a'), /disposed/);
 });
+
+// ---------------------------------------------------------------- stage wiring
+
+import { createStage, createBridge as createBridgeFromRoot, BRIDGE_PROPS as RootProps } from '../src/index.js';
+
+test('package root exports createBridge and BRIDGE_PROPS', () => {
+  assert.equal(createBridgeFromRoot, createBridge);
+  assert.deepEqual(Object.keys(RootProps), Object.keys(BRIDGE_PROPS));
+});
+
+test('stage.bridge drives spec objects and lights through the stage timeline', () => {
+  const stage = createStage({
+    objects: [{ name: 'hero', type: 'box' }],
+    lights: [{ name: 'key', type: 'point' }],
+  });
+  assert.equal(stage.ok, true);
+  const hero = stage.bridge.object('hero');
+  stage.timeline.to(hero, { x: 4, rotateY: Math.PI, duration: 2, ease: 'none' }, 0);
+  stage.timeline.to(stage.bridge.object('key'), { y: 9, duration: 2, ease: 'none' }, 0);
+  stage.seek(1);
+  assert.equal(stage.objects.get('hero').position.x, 2);
+  assert.ok(Math.abs(stage.objects.get('hero').rotation.y - Math.PI / 2) < 1e-6); // GSAP rounds tween output to ~1e-6
+  assert.equal(stage.lights.get('key').position.y, 3 + (9 - 3) / 2);
+  stage.seek(0);
+  assert.equal(stage.objects.get('hero').position.x, 0);
+  stage.dispose();
+});
+
+test('stage.dispose disposes the bridge', () => {
+  const stage = createStage({ objects: [{ name: 'a', type: 'box' }] });
+  const { bridge } = stage;
+  stage.dispose();
+  assert.throws(() => bridge.object('a'), /disposed/);
+});

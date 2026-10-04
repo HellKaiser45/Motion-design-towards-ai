@@ -25,9 +25,11 @@ export {
   SCORE_DEFAULTS,
   SCORE_REPEAT_CAP,
   SCORE_RESERVED_TARGETS,
+  BRIDGE_PROPS,
 } from './spec/schema.js';
 
 export { validateSpec, normalizeSpec } from './spec/validate.js';
 export { compileScore } from './score/compile.js';
+export { createBridge } from './bridge/createBridge.js';
 export { createStage } from './stage/createStage.js';
 export { createOverlay, splitChars, splitWords } from './svg/createOverlay.js';
