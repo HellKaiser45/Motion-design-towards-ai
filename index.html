@@ -468,16 +468,21 @@
     var join = entry.src.indexOf('?') >= 0 ? '&' : '?';
     readyTimer = setTimeout(function () {
       if (!ready) {
-        showBanner('⚠ submission did not initialize within 8 s — the kit may be missing or not speaking the review protocol.');
+        showBanner('submission did not initialize within 8 s — the kit may be missing or not speaking the review protocol.');
       }
     }, 8000);
     iframe.src = entry.src + join + 'review=1';
   }
 
   function esc(s) {
-    return String(s).replace(/[&<>"']/g, function (c) {
-      return { '&': '&', '<': '<', '>': '>', '"': '"', "'": '&#39;' }[c];
-    });
+    var MAP = {
+      '&': '&' + 'amp;',
+      '<': '&' + 'lt;',
+      '>': '&' + 'gt;',
+      '"': '&' + 'quot;',
+      "'": '&' + '#39;'
+    };
+    return String(s).replace(/[&<>"']/g, function (c) { return MAP[c]; });
   }
 
   // ---------------- transport ----------------
@@ -591,8 +596,8 @@
         btnPlay.textContent = 'Play';
         break;
       case 'error':
-        showBanner('✕ <b>submission error</b> — ' + esc(m.message || 'unknown') +
-          ' &nbsp; <a href="' + esc(current.src) + '" target="_blank" rel="noopener">Open standalone ↗</a>');
+        showBanner('submission error — ' + esc(m.message || 'unknown') +
+          ' &nbsp; <a href="' + esc(current.src) + '" target="_blank" rel="noopener">Open standalone</a>');
         break;
     }
   });
