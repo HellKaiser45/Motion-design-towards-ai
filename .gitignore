@@ -1,0 +1,34 @@
+# ============================================================
+# Agent Stage — template .gitignore
+# The template is zero-build: everything tracked is source.
+# Everything generated while developing/testing it is below.
+# ============================================================
+
+# --- Dev & verification scratch (probe scripts, headless-browser
+#     tooling, node_modules used only by probes, test screenshots) ---
+.probe/
+
+# --- Export & screenshot artifacts from testing the template ---
+out-export.webm
+shot-*.png
+
+# --- OS / editor noise ---
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# --- Node (only the dev probes use it — the runtime has no deps) ---
+node_modules/
+package-lock.json
+
+# --- Env & logs ---
+.env
+.env.*
+!.env.example
+*.log

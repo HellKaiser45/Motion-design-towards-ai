@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 160" width="200" height="160">
+  <defs>
+    <style>
+      /* Free-running CSS blink loop embedded in the SVG (self-runs via browser) */
+      @keyframes as-blink {
+        0%, 90% { transform: scaleY(1); }
+        95% { transform: scaleY(0.08); }
+        100% { transform: scaleY(1); }
+      }
+      #eyeL, #eyeR {
+        transform-origin: center;
+        transform-box: fill-box;
+        animation: as-blink 3.2s infinite;
+      }
+    </style>
+  </defs>
+
+  <!-- robot face shell -->
+  <rect x="20" y="14" width="160" height="130" rx="24"
+        fill="#1c2733" stroke="#3fa9f5" stroke-width="4"/>
+
+  <!-- eyes -->
+  <rect id="eyeL" x="55" y="55" width="26" height="34" rx="8" fill="#4ff2c3"/>
+  <rect id="eyeR" x="119" y="55" width="26" height="34" rx="8" fill="#4ff2c3"/>
+
+  <!-- mouth: SMIL morph flat -> smile, begin="indefinite" (trigger mode) -->
+  <path id="mouth" fill="none" stroke="#4ff2c3" stroke-width="6" stroke-linecap="round"
+        d="M 70 112 L 130 112">
+    <animate id="smile" attributeName="d" begin="indefinite" dur="0.6s" fill="freeze"
+             values="M 70 112 L 130 112;
+                     M 70 112 Q 100 128 130 112;
+                     M 70 108 Q 100 134 130 108;
+                     M 70 108 Q 100 134 130 108;
+                     M 70 112 Q 100 128 130 112;
+                     M 70 112 L 130 112"
+             keyTimes="0;0.25;0.4;0.75;0.85;1"
+             calcMode="spline"
+             keySplines="0.4 0 1 1; 0 0 0.6 1; 0 0 1 1; 0.4 0 1 1; 0 0 0.6 1"/>
+  </path>
+</svg>

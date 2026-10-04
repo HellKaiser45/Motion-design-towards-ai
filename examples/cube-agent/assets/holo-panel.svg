@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 170" width="260" height="170">
+  <!--
+    Holographic data panel (one of three orbiting CU-13). Three glyph groups
+    are present; the example code shows exactly one per mounted instance.
+    The scan line is a self-contained CSS keyframe loop.
+  -->
+  <style>
+    .holo-scan {
+      animation: holoscan 2.6s linear infinite;
+    }
+    @keyframes holoscan {
+      0%   { transform: translateY(0px); opacity: 0; }
+      10%  { opacity: 0.9; }
+      90%  { opacity: 0.9; }
+      100% { transform: translateY(120px); opacity: 0; }
+    }
+    .blip {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: blip 1.8s ease-in-out infinite;
+    }
+    .blip.b2 { animation-delay: 0.4s; }
+    .blip.b3 { animation-delay: 0.9s; }
+    @keyframes blip {
+      0%, 100% { opacity: 0.5; }
+      50%      { opacity: 1; }
+    }
+  </style>
+  <defs>
+    <filter id="holo-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.5" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <linearGradient id="holobg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="rgba(14,42,66,0.6)"/>
+      <stop offset="1" stop-color="rgba(6,16,28,0.55)"/>
+    </linearGradient>
+  </defs>
+  <g id="panel" opacity="0">
+    <rect x="1" y="1" width="258" height="168" rx="12" fill="url(#holobg)"
+          stroke="#22d3ee" stroke-opacity="0.55"/>
+    <path d="M8 24 L8 9 L23 9" fill="none" stroke="#22d3ee" stroke-width="2.5" stroke-opacity="0.9"/>
+    <path d="M252 24 L252 9 L237 9" fill="none" stroke="#22d3ee" stroke-width="2.5" stroke-opacity="0.9"/>
+    <path d="M8 146 L8 161 L23 161" fill="none" stroke="#22d3ee" stroke-width="2.5" stroke-opacity="0.9"/>
+    <path d="M252 146 L252 161 L237 161" fill="none" stroke="#22d3ee" stroke-width="2.5" stroke-opacity="0.9"/>
+
+    <text id="panel-title" x="130" y="26" text-anchor="middle"
+          font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="11" fill="#7dd3fc" letter-spacing="3">UPLINK</text>
+
+    <g id="glyph-net" filter="url(#holo-glow)">
+      <line x1="70" y1="95" x2="130" y2="62" stroke="#22d3ee" stroke-width="1.5" stroke-opacity="0.6"/>
+      <line x1="70" y1="95" x2="130" y2="120" stroke="#22d3ee" stroke-width="1.5" stroke-opacity="0.6"/>
+      <line x1="130" y1="62" x2="190" y2="95" stroke="#22d3ee" stroke-width="1.5" stroke-opacity="0.6"/>
+      <line x1="130" y1="120" x2="190" y2="95" stroke="#22d3ee" stroke-width="1.5" stroke-opacity="0.6"/>
+      <line x1="130" y1="62" x2="130" y2="120" stroke="#22d3ee" stroke-width="1.5" stroke-opacity="0.35"/>
+      <circle class="blip" cx="70" cy="95" r="7" fill="#22d3ee"/>
+      <circle class="blip b2" cx="130" cy="62" r="7" fill="#7dd3fc"/>
+      <circle class="blip b3" cx="190" cy="95" r="7" fill="#22d3ee"/>
+      <circle class="blip b2" cx="130" cy="120" r="7" fill="#34d399"/>
+    </g>
+
+    <g id="glyph-core" filter="url(#holo-glow)">
+      <rect x="98" y="62" width="64" height="64" rx="8" fill="none" stroke="#22d3ee" stroke-width="2.5"/>
+      <rect x="112" y="76" width="36" height="36" rx="4" fill="rgba(34,211,238,0.18)" stroke="#7dd3fc" stroke-width="2"/>
+      <line x1="84" y1="78" x2="98" y2="78" stroke="#22d3ee" stroke-width="2"/>
+      <line x1="84" y1="94" x2="98" y2="94" stroke="#22d3ee" stroke-width="2"/>
+      <line x1="84" y1="110" x2="98" y2="110" stroke="#22d3ee" stroke-width="2"/>
+      <line x1="162" y1="78" x2="176" y2="78" stroke="#22d3ee" stroke-width="2"/>
+      <line x1="162" y1="94" x2="176" y2="94" stroke="#22d3ee" stroke-width="2"/>
+      <line x1="162" y1="110" x2="176" y2="110" stroke="#22d3ee" stroke-width="2"/>
+      <line x1="110" y1="48" x2="110" y2="62" stroke="#22d3ee" stroke-width="2"/>
+      <line x1="130" y1="48" x2="130" y2="62" stroke="#22d3ee" stroke-width="2"/>
+      <line x1="150" y1="48" x2="150" y2="62" stroke="#22d3ee" stroke-width="2"/>
+      <circle class="blip b3" cx="130" cy="94" r="6" fill="#fbbf24"/>
+    </g>
+
+    <g id="glyph-wave" filter="url(#holo-glow)">
+      <polyline points="30,95 50,95 58,72 66,118 74,80 82,105 90,95 110,95 118,66 126,120 134,78 142,102 150,95 170,95 178,74 186,116 194,82 202,104 210,95 230,95"
+                fill="none" stroke="#22d3ee" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle class="blip" cx="66" cy="118" r="4" fill="#fbbf24"/>
+      <circle class="blip b2" cx="126" cy="120" r="4" fill="#22d3ee"/>
+      <circle class="blip b3" cx="186" cy="116" r="4" fill="#34d399"/>
+    </g>
+
+    <rect class="holo-scan" x="8" y="30" width="244" height="3" fill="#22d3ee" opacity="0.7"/>
+  </g>
+</svg>
