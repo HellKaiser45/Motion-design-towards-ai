@@ -587,6 +587,7 @@ $('#btn-bg').addEventListener('click', () => {
 const em = new ExportManager({
   stage, timeline: agg.timeline, driver, svgLayer,
   engines, compositor: new Compositor(),
+  anchorBridge: agg.anchorBridge, textureBridge: agg.textureBridge,
 });
 
 const caps = ExportManager.supported();

@@ -19,6 +19,11 @@
  * serialization and removing them after. Baking is scoped to the SVG being
  * serialized.
  *
+ * Resolution handling: when the export width/height aspect differs from the
+ * live canvas, the camera aspect + renderer drawing buffer are retargeted for
+ * the render and restored in a finally (both capture paths), so 3D content
+ * fills the export canvas without distortion. Matching aspect = zero-op.
+ *
  * Identical-markup rasterizations are cached (FNV-1a hash of the markup) so
  * static SVGs cost one encode for the whole export. Failed rasterizations are
  * never cached — they retry on the next frame.
@@ -51,7 +56,16 @@ export class Compositor {
    * @returns {Promise<HTMLCanvasElement>}
    */
   async captureFrame(ctx) {
-    const base = this._prepare(ctx);
+    try {
+      const base = this._prepare(ctx);
+      return await this._capture(ctx, base);
+    } finally {
+      this._restore(ctx, ctx.__compositorSaved);
+    }
+  }
+
+  /** @private shared SVG overlay pass for the async capture path */
+  async _capture(ctx, base) {
     const { svgLayer } = ctx;
     const waaapi = ctx.engines?.waapi ?? null;
 
@@ -82,7 +96,16 @@ export class Compositor {
    * @returns {HTMLCanvasElement}
    */
   captureFrameSync(ctx) {
-    const base = this._prepare(ctx);
+    try {
+      const base = this._prepare(ctx);
+      return this._captureSync(ctx, base);
+    } finally {
+      this._restore(ctx, ctx.__compositorSaved);
+    }
+  }
+
+  /** @private shared SVG overlay pass for the sync capture path */
+  _captureSync(ctx, base) {
     const { svgLayer } = ctx;
     const waaapi = ctx.engines?.waapi ?? null;
 
@@ -106,12 +129,36 @@ export class Compositor {
 
   // ---- shared pure layout/mapping helpers ----
 
+  /** @private put camera.aspect and renderer drawing-buffer size back */
+  _restore(ctx, saved) {
+    ctx.__compositorSaved = null;
+    if (!saved) return; // aspects matched: nothing was changed
+    const { stage } = ctx;
+    stage.camera.aspect = saved.aspect;
+    stage.camera.updateProjectionMatrix();
+    stage.renderer.setSize(saved.size.x, saved.size.y, false);
+  }
+
   /** @private validate ctx, render WebGL, set up the 2D base layer */
   _prepare(ctx) {
     const { stage, svgLayer, width, height, background } = ctx;
     if (!stage || !svgLayer) {
       throw new Error('[agent-stage.compositor] captureFrame requires { stage, svgLayer }');
     }
+
+    // If the export resolution has a different aspect than the live canvas,
+    // retarget the camera + renderer drawing buffer so the 3D content fills
+    // the export canvas without distortion; _restore() puts everything back.
+    const priorAspect = stage.camera.aspect;
+    const savedSize = stage.renderer.getSize({ x: 0, y: 0 });
+    let saved = null;
+    if (Math.abs(width / height - priorAspect) > 1e-6) {
+      saved = { aspect: priorAspect, size: savedSize };
+      stage.camera.aspect = width / height;
+      stage.camera.updateProjectionMatrix();
+      stage.renderer.setSize(width, height, false); // false = keep CSS size
+    }
+    ctx.__compositorSaved = saved;
 
     // Force the WebGL frame to be current in THIS task, then draw.
     stage.renderer.render(stage.scene, stage.camera);

@@ -12,6 +12,11 @@
  * additionally runs at a configurable `fps` floor (default 30) so always-live
  * content (CSS keyframe loops inside SVG-as-image) still refreshes. Frames are
  * skipped while a previous image is still loading to avoid tearing.
+ *
+ * Deterministic sampling: sample(target) / sampleAll() force a rasterization
+ * pass NOW (ignoring dirty/fps gating) and await it — used by the offline
+ * FrameRenderer after each seek so exported frames show the DOM state at
+ * time t, not a stale in-flight rasterization.
  */
 
 export class TextureBridge {
@@ -130,29 +135,67 @@ export class TextureBridge {
     }
   }
 
-  /** @private queue one rasterization pass (async image load, no tearing) */
+  /**
+   * Force one rasterization pass for a single bound target NOW, ignoring
+   * dirty/fps gating. Resolves when the texture reflects current DOM state.
+   * @param {object} target THREE.Object3D previously bound
+   */
+  async sample(target) {
+    const entry = this._binds.get(target);
+    if (!entry) return;
+    if (entry.pending) await entry.pending;
+    // The await may have been stale (started before a seek) — always capture
+    // the post-await DOM state with a fresh rasterization.
+    await this._rasterize(entry, performance.now());
+  }
+
+  /**
+   * Force one rasterization pass for ALL bound targets NOW (used by offline
+   * export: after `await textureBridge.sampleAll()` every bound texture
+   * reflects the current DOM state). Existing in-flight rasterizations are
+   * awaited, then a FRESH pass captures the current state — never a stale one.
+   */
+  async sampleAll() {
+    const waits = [];
+    for (const entry of this._binds.values()) {
+      if (entry.pending) await entry.pending;
+      waits.push(this._rasterize(entry, performance.now()));
+    }
+    await Promise.all(waits);
+  }
+
+  /** @private rasterize one entry, resolving when the draw (or retry flag) is set */
   _rasterize(entry, now) {
     entry.dirty = false;
     entry.lastDraw = now;
-    entry.pending = true;
 
-    // Serialize the live mounted SVG (markup string — no URL loading needed).
-    const markup = new XMLSerializer().serializeToString(entry.svg);
-    const img = new Image();
-    const done = () => { entry.pending = false; };
-    img.onload = () => {
-      try {
-        entry.c2d.clearRect(0, 0, entry.canvas.width, entry.canvas.height);
-        entry.c2d.drawImage(img, 0, 0, entry.canvas.width, entry.canvas.height);
-        entry.texture.needsUpdate = true;
-      } finally { done(); }
-    };
-    img.onerror = () => {
-      // transient decode failure must not stick as a blank texture — retry
-      entry.dirty = true;
-      done();
-    };
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(markup);
+    const prior = entry.pending;
+    if (prior) return prior; // already rasterizing: same result awaited twice
+
+    const promise = new Promise((resolve) => {
+      // Serialize the live mounted SVG (markup string — no URL loading needed).
+      const markup = new XMLSerializer().serializeToString(entry.svg);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          entry.c2d.clearRect(0, 0, entry.canvas.width, entry.canvas.height);
+          entry.c2d.drawImage(img, 0, 0, entry.canvas.width, entry.canvas.height);
+          entry.texture.needsUpdate = true;
+        } finally {
+          entry.pending = null;
+          resolve();
+        }
+      };
+      img.onerror = () => {
+        // transient decode failure must not stick as a blank texture — retry
+        entry.dirty = true;
+        entry.pending = null;
+        resolve();
+      };
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(markup);
+    });
+    entry.pending = promise;
+    return promise;
   }
 
   dispose() {

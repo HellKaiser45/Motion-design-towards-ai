@@ -10,7 +10,7 @@
  *   options:{ fill?, composite?, easing? }, loop?:'repeat'|'pingpong' }
  * Offsets are derived from t/duration, sorted and normalized: first 0, last 1.
  */
-import { applyEasing } from '../core/easing.js';
+import { applyEasing, assertEasing, cssLinear } from '../core/easing.js';
 
 export class WaapiEngine {
   /** @param {import('../layers/svg-layer.js').SvgLayer} svgLayer */
@@ -58,6 +58,10 @@ export class WaapiEngine {
 
     // Sort by t, derive offsets
     const sorted = [...spec.keyframes].sort((a, b) => (a.t ?? 0) - (b.t ?? 0));
+    // First keyframe after t=0 means "hold that value until then" (CSS-animation
+    // semantics); previously offsets were silently normalized by lastT which
+    // stretched/shifted the whole track.
+    if ((sorted[0].t ?? 0) > 0) sorted.unshift({ ...sorted[0], t: 0, ease: undefined });
     const lastT = sorted[sorted.length - 1].t ?? 0;
     if (lastT <= 0) {
       throw new Error('[agent-stage.waapiEngine] keyframes need increasing t values with a positive final t');
@@ -75,6 +79,7 @@ export class WaapiEngine {
     if (normalized.length < 2) {
       throw new Error('[agent-stage.waapiEngine] need at least 2 distinct keyframes');
     }
+    for (const kf of sorted) assertEasing(kf.ease, `waapi track "${spec.selector}"`);
 
     this._spec = spec;
     this._kfs = normalized;
@@ -107,8 +112,7 @@ export class WaapiEngine {
     return this._playing;
   }
 
-  /** Create/start the Animation (from current seek position if any). */
-  play() {
+  /** Create/start the Animation (from current seek position if any). */  play() {
     if (!this._element) return;
     this._ensureAnimation();
     this._playing = true;
@@ -253,17 +257,19 @@ export class WaapiEngine {
     this._animation.pause();
   }
 
-  /** @private map normalized tracks to WAAPI keyframes (with optional easing) */
+  /**
+   * @private map normalized keyframes to WAAPI keyframes.
+   * WAAPI applies a keyframe's `easing` to the segment that STARTS at it, whereas
+   * our schema (and PropEngine) takes easing from the segment's END keyframe.
+   * Shift by one so both engines produce identical curves, and emit an exact
+   * CSS linear() sample for non-CSS curves (elastic, bounce, expo, ...).
+   */
   _buildKeyframes() {
-    return this._kfs.map((kf) => {
+    return this._kfs.map((kf, i) => {
       const { offset, ease, ...props } = kf;
       const out = { offset, ...props };
-      if (ease !== undefined && ease !== null) {
-        // Map our easing names to CSS easing syntax; linear passthrough, else
-        // fall back to per-segment evaluation is not possible in WAAPI, so use
-        // closest CSS equivalents.
-        out.easing = cssEasing(ease);
-      }
+      const next = this._kfs[i + 1];
+      if (next) out.easing = cssLinear(next.ease);
       return out;
     });
   }
@@ -312,28 +318,9 @@ function sampleKeyframes(kfs, prop, p) {
     const b = num[Math.min(i + 1, num.length - 1)];
     const span = b.offset - a.offset || 1;
     const raw = (p - a.offset) / span;
-    return a[prop] + (b[prop] - a[prop]) * raw;
+    return a[prop] + (b[prop] - a[prop]) * applyEasing(b.ease, raw); // END-keyframe easing, same as live
   }
   let best = vals[0];
   for (const kf of vals) if (kf.offset <= p) best = kf;
   return best[prop];
-}
-
-/**
- * Map our named easings to CSS easing strings for WAAPI.
- * Unknown names fall back to 'linear'.
- * @param {string} name
- * @returns {string}
- */
-function cssEasing(name) {
-  switch (name) {
-    case 'linear': return 'linear';
-    case 'easeInQuad': case 'easeInCubic': return 'cubic-bezier(0.55, 0.085, 0.68, 0.53)';
-    case 'easeOutQuad': case 'easeOutCubic': return 'cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-    case 'easeInOutQuad': case 'easeInOutCubic': return 'cubic-bezier(0.455, 0.03, 0.515, 0.955)';
-    case 'backOut': return 'cubic-bezier(0.34, 1.56, 0.64, 1)';
-    case 'elasticOut': return 'linear'; // no CSS equivalent; keep linear
-    case 'step': return 'steps(1, end)';
-    default: return 'linear';
-  }
 }

@@ -10,7 +10,7 @@
  * Keyframes are absolute seconds, numeric values, linear interp between
  * keyframes with easing from the segment's END keyframe.
  */
-import { applyEasing } from '../core/easing.js';
+import { applyEasing, assertEasing } from '../core/easing.js';
 
 export class PropEngine {
   /** @param {import('../layers/three-layer.js').ThreeLayer} threeLayer */
@@ -57,6 +57,7 @@ export class PropEngine {
         }
       }
       for (const kf of sorted) {
+        assertEasing(kf.ease, `prop track "${spec.target}" / "${propPath}"`);
         if (typeof kf.v !== 'number' || Number.isNaN(kf.v)) {
           throw new Error(`[agent-stage.propEngine] keyframe value must be numeric in "${propPath}"`);
         }

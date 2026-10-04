@@ -11,14 +11,23 @@
  * synchronously, then await compositor.captureFrame(). Machine speed is
  * irrelevant: each output frame is the exact state at t.
  *
+ * Full pipeline per frame: run the caller's schedule hook -> seek pack
+ * instances -> timeline.seek(t) -> bridges sample the current DOM state
+ * (AnchorBridge.updateAll() repositions overlays; TextureBridge.sampleAll()
+ * forces a synchronous rasterization pass so bound textures reflect the DOM
+ * NOW) -> compositor.captureFrame().
+ *
  * Before returning, the previous play state is restored (resumed if it was
- * playing, otherwise left paused at its prior playhead).
+ * playing, otherwise left paused at its prior playhead). Export-created
+ * instances (schedule-hook debris) are stopped so they never leak into live
+ * playback.
  */
 
 export class FrameRenderer {
   /**
    * @param {{stage:object, timeline:object, driver?:object, compositor:object,
-   *          svgLayer:object, engines?:object}} ctx
+   *          svgLayer:object, engines?:object, anchorBridge?:object,
+   *          textureBridge?:object}} ctx
    */
   constructor(ctx) {
     if (!ctx || !ctx.stage || !ctx.timeline || !ctx.compositor) {
@@ -73,6 +82,11 @@ export class FrameRenderer {
         // Fan out to ambient timeline tracks + synchronous stage render.
         timeline.seek(t);
 
+        // Bridges only update on live RAF ticks; force a deterministic sample
+        // of the DOM state at t before capture.
+        this._ctx.anchorBridge?.updateAll?.();
+        await this._ctx.textureBridge?.sampleAll?.();
+
         const frameCanvas = await compositor.captureFrame(captureCtx);
         if (onFrame) await onFrame(frameCanvas, i, t);
         onProgress?.((i + 1) / frames);
@@ -93,7 +107,7 @@ function snapshotDriver(driver) {
   if (!driver?._channels) return [];
   const out = [];
   for (const [channel, ch] of driver._channels) {
-    if (ch.current) out.push({ channel, playing: !!ch.current.pack.playing });
+    if (ch.current) out.push({ channel, instance: ch.current, playing: !!ch.current.pack.playing });
   }
   return out;
 }
@@ -127,11 +141,17 @@ function restore(driver, timeline, stage, snap) {
     if (playing) h.play();
     else h.pause();
   }
-  for (const { channel, playing } of driverStates) {
+  for (const { channel, instance, playing } of driverStates) {
     const ch = driver._channels.get(channel);
-    if (!ch?.current) continue;
-    if (playing) ch.current.pack.resume();
-    else ch.current.pack.pause();
+    if (ch?.current === instance) {
+      if (playing) instance.pack.resume();
+      else instance.pack.pause();
+    } else if (ch?.current) {
+      // Export debris: the schedule hook replaced the pre-export instance on
+      // this channel — stop it so scheduler-created packs don't survive.
+      ch.current.pack.stop?.();
+      driver.stop(channel);
+    }
   }
   if (wasPlaying) stage.resumeClock();
   else stage.pauseClock();

@@ -20,6 +20,8 @@ export class Registry {
     this._packs = new Map();
     /** @private Map<string, Promise<CompiledPack>|CompiledPack> */
     this._compiled = new Map();
+    /** @private Map<string, {three?:string}|{svg:string, selector:string}> */
+    this._targets = new Map();
     this._instantiated = false;
   }
 
@@ -54,6 +56,81 @@ export class Registry {
   /** @returns {string[]} registered asset names */
   listAssets() {
     return [...this._assets.keys()];
+  }
+
+  // ---- semantic targets ----
+
+  /**
+   * Register a semantic target: a logical name an engine-less pack track can
+   * reference. Bindings are `{ three: 'objectName' }` (a ThreeLayer name) or
+   * `{ svg: 'svgName', selector: '#sel' }` (mounted SVG + CSS selector).
+   * @param {string} name e.g. 'body' or 'face.smile' (dots allowed; longest-prefix match applies)
+   * @param {{three?:string, svg?:string, selector?:string}} binding
+   */
+  registerTarget(name, binding) {
+    if (typeof name !== 'string' || !name) {
+      throw new Error('[agent-stage.registry] registerTarget requires a non-empty name');
+    }
+    if (!binding || typeof binding !== 'object' || Array.isArray(binding)) {
+      throw new Error(`[agent-stage.registry] target "${name}" binding must be an object ({ three } or { svg, selector })`);
+    }
+    const keys = Object.keys(binding);
+    if (keys.length === 0) {
+      throw new Error(`[agent-stage.registry] target "${name}" binding must not be empty`);
+    }
+    if (binding.three !== undefined) {
+      if (typeof binding.three !== 'string' || !binding.three) {
+        throw new Error(`[agent-stage.registry] target "${name}" binding.three must be a non-empty string`);
+      }
+      if (keys.some((k) => k !== 'three')) {
+        throw new Error(`[agent-stage.registry] target "${name}" binding with "three" must not also declare svg/selector`);
+      }
+    } else if (binding.svg !== undefined || binding.selector !== undefined) {
+      if (typeof binding.svg !== 'string' || !binding.svg || typeof binding.selector !== 'string' || !binding.selector) {
+        throw new Error(`[agent-stage.registry] target "${name}" svg binding must be { svg: string, selector: string }`);
+      }
+      if (keys.some((k) => k !== 'svg' && k !== 'selector')) {
+        throw new Error(`[agent-stage.registry] target "${name}" binding has unknown keys ${keys.join(', ')}`);
+      }
+    } else {
+      throw new Error(`[agent-stage.registry] target "${name}" binding must be { three } or { svg, selector }`);
+    }
+    this._targets.set(name, { ...binding });
+    return this;
+  }
+
+  /** @param {Record<string, {three?:string}|{svg?:string, selector?:string}>} map */
+  registerTargets(map) {
+    if (!map || typeof map !== 'object' || Array.isArray(map)) {
+      throw new Error('[agent-stage.registry] registerTargets requires a map object of name -> binding');
+    }
+    for (const [name, binding] of Object.entries(map)) this.registerTarget(name, binding);
+    return this;
+  }
+
+  /**
+   * Resolve a semantic target name to a binding. Exact match first, then the
+   * longest dot-prefix match: 'body.position.y' resolves binding 'body' with
+   * rest 'position.y'; 'face.smile' exact-matches a binding 'face.smile'.
+   * @param {string} name
+   * @returns {{binding:object, rest:string}|null} rest is the unmatched remainder ('' on exact match)
+   */
+  resolveTarget(name) {
+    if (typeof name !== 'string' || !name) return null;
+    const exact = this._targets.get(name);
+    if (exact) return { binding: exact, rest: '' };
+    const parts = name.split('.');
+    for (let i = parts.length - 1; i >= 1; i--) {
+      const prefix = parts.slice(0, i).join('.');
+      const b = this._targets.get(prefix);
+      if (b) return { binding: b, rest: parts.slice(i).join('.') };
+    }
+    return null;
+  }
+
+  /** @returns {string[]} registered target names */
+  listTargets() {
+    return [...this._targets.keys()];
   }
 
   // ---- packs ----
@@ -130,7 +207,7 @@ export class Registry {
     for (const [name, entry] of this._packs) {
       if (this._compiled.has(name)) continue;
       if (entry.kind === 'url') {
-        this._compiled.set(name, (async () => {
+        const p = (async () => {
           const res = await fetch(entry.value);
           if (!res.ok) throw new Error(`[agent-stage.registry] failed to fetch pack ${entry.value}: ${res.status}`);
           const json = await res.json();
@@ -144,7 +221,12 @@ export class Registry {
           this._packs.set(json.name, { kind: 'obj', value: json });
           this._compiled.set(json.name, compiled);
           return compiled;
-        })());
+        })();
+        // A rejected fetch must not wedge the registry: drop the failed
+        // promise entry so a retry (fresh registerPack or next compileAll)
+        // is possible. The rejection still propagates to Promise.all below.
+        p.catch(() => { this._compiled.delete(name); });
+        this._compiled.set(name, p);
       } else {
         this._compiled.set(name, compilePack(entry.value, ctx, name));
       }
@@ -190,7 +272,7 @@ import { compile } from './pack-compiler.js';
 
 /** @private */
 function compilePack(json, ctx, fallbackName) {
-  if (!json.name) json.name = json.name || fallbackName;
+  if (!json.name) json.name = fallbackName;
   return compile(json, ctx);
 }
 

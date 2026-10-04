@@ -120,6 +120,54 @@ character move — it emits packs.
 - Author SMIL assets with `begin="0s"` (or small offsets), `fill="freeze"`,
   so doc-clock seeking positions them exactly.
 
+### Semantic targets & compact form
+
+Engine-less tracks + a target registry mean packs never name engines or CSS
+selectors. Targets bind logical names to assets once:
+
+```js
+registry.registerTarget('body', { three: 'body' });
+registry.registerTarget('face.smile', { svg: 'face', selector: '#m-smile' });
+registry.registerTargets({                     // bulk form
+  'face.mouth': { svg: 'face', selector: '#mouth' },
+  hud:          { svg: 'hud',  selector: '#panel' },
+});
+registry.listTargets();                        // ['body', 'face.smile', ...]
+```
+
+Bindings are `{ three: 'objectName' }` or `{ svg: 'svgName', selector: '#sel' }`
+(malformed bindings throw `[agent-stage.registry]` errors). A track target
+resolves **exact-match first**, then the **longest dot-prefix**:
+`'body.position.y'` → binding `body` + rest `position.y`; `'face.smile'`
+exact-matches binding `face.smile`.
+
+Compact tracks (compiler rewrites them to canonical form; the compile context
+needs `ctx.registry`):
+
+```jsonc
+// three: dotted target + tuple keys [t, v, ease?]
+{ "target": "body.position.y", "keys": [[0, 0], [0.4, 0.2, "easeOutCubic"]] }
+
+// three: multi-prop keys map
+{ "target": "body", "keys": {
+    "position.y": [[0, 0], [1, 1]],
+    "rotation.x": [[0, 0], [1, 0.5, "backOut"]]
+} }
+
+// svg: element target + keyframe objects ("keyframes" is an alias of "keys")
+{ "target": "face.smile", "keys": [
+    { "t": 0,    "opacity": 0 },
+    { "t": 0.25, "opacity": 1, "ease": "backOut" }
+] }
+```
+
+`begin` / `loop` / `options` pass through to the canonical track. Unknown
+targets throw a clear error naming the target and suggesting
+`registry.listTargets()`.
+
+**Legacy-but-supported:** the explicit `"engine": "prop"` / `"engine": "waapi"`
+forms with `target` / `svg` + `selector` keep working unchanged.
+
 ### Loop mapping
 
 `repeat` wraps `t % dur`; `pingpong` folds `t` across `2·dur`. Applied inside
@@ -160,6 +208,15 @@ const pack = registry.getPack('greet');          // CompiledPack
 Packs registered as URL strings are fetched and name-keyed lazily by
 `compileAll()`. Object packs compile lazily on first `getPack()` if a context
 was cached (`registry.setContext(ctx)` — done by `createAgentStage()`).
+
+### Definitions and instances
+
+`compile()` returns an **immutable definition**. `definition.createInstance(loop?)`
+builds an isolated playback instance (fresh engines, own playhead and
+`finished` promise) — the driver does this on every `play()`, so the same pack
+on several channels never shares state. A `play({loop})` override never
+mutates the definition. The legacy `pack.play()/seek()/tick()/finished`
+surface still works (an internal default instance).
 
 ### Authoring reusable SVG assets
 
