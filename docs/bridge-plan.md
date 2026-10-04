@@ -25,7 +25,7 @@ loop and **without** losing the `seek(t)` determinism contract.
 ## Steps
 
 - [x] 1. Plan doc, fix `npm test` on Node >= 22
-- [ ] 2. `src/bridge/createBridge.js` core (object proxies) + unit tests
+- [x] 2. `src/bridge/createBridge.js` core (object proxies) + unit tests
 - [ ] 3. Wire `stage.bridge` into `createStage`, export from package root
 - [ ] 4. `animate` score verb: schema tokens, validation, compiler, tests
 - [ ] 5. `bridge.channel()` custom bindings (uniforms etc.) + tests
@@ -34,4 +34,6 @@ loop and **without** losing the `seek(t)` determinism contract.
 
 ## Log
 
-(each step appends a line here when pushed)
+(each step appends a line here when committed)
+
+- step 2: `createBridge` core — accessor proxies, `snapshot`, `BRIDGE_PROPS` token + `describeTokens().bridgeProps`; 11 tests (113 total).

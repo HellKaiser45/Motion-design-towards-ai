@@ -117,6 +117,23 @@ export const SCORE_VERBS = Object.freeze({
   'look-at': Object.freeze({ props: 'object.lookAt via onUpdate', params: Object.freeze({ x: 'number', y: 'number', z: 'number', target: "object name — look at that object's position" }) }),
 });
 
+// Bridge vocabulary (DOM-style property names for 3D objects). The names are
+// the contract: src/bridge/createBridge.js must implement exactly these keys.
+// Rotations are radians (same unit as the `rotate` verb).
+export const BRIDGE_PROPS = Object.freeze({
+  x: 'position.x, world units',
+  y: 'position.y, world units',
+  z: 'position.z, world units',
+  rotateX: 'rotation.x, radians',
+  rotateY: 'rotation.y, radians',
+  rotateZ: 'rotation.z, radians',
+  scale: 'uniform scale; writing sets scale.x/y/z, reading returns scale.x',
+  scaleX: 'scale.x',
+  scaleY: 'scale.y',
+  scaleZ: 'scale.z',
+  opacity: 'material.opacity 0..1 (objects with a material; reads 1 otherwise)',
+});
+
 // Reserved non-registry targets for cue routing.
 export const SCORE_RESERVED_TARGETS = Object.freeze(['camera', 'scene']);
 
@@ -174,6 +191,7 @@ export function describeTokens() {
     svgAligns: [...SVG_ALIGNS],
     svgFits: [...SVG_FITS],
     backgroundPresets: { ...BACKGROUND_PRESETS },
+    bridgeProps: { ...BRIDGE_PROPS },
     scoreVerbs: JSON.parse(JSON.stringify(SCORE_VERBS)),
     scoreEases: { ...SCORE_EASES },
     scoreDefaults: JSON.parse(JSON.stringify(SCORE_DEFAULTS)),
