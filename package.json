@@ -1,0 +1,15 @@
+{
+  "name": "agent-stage",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Zero-build SVG + Three.js motion framework for AI agents",
+  "scripts": {
+    "serve": "npx serve .",
+    "render": "node tools/render.mjs",
+    "check": "node tools/render.mjs examples/hello-motion --check && node tools/render.mjs examples/nova-core --check",
+    "test": "node tests/run.mjs"
+  },
+  "dependencies": { "three": "0.160.0" },
+  "devDependencies": { "playwright-core": "^1.48.0" }
+}
