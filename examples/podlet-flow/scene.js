@@ -136,7 +136,7 @@ const svg = `<svg viewBox="0 0 1920 1080">
   <g id="nodePublic" data-origin="center">
     <rect x="1230" y="736" width="340" height="84" fill="${INK}" stroke="${INK}" stroke-width="2" filter="url(#hardShadow)"/>
     <text x="1400" y="768" text-anchor="middle" font-family="${MONO}" font-size="22" letter-spacing="3" fill="#140d05">● PUBLIC</text>
-    <text x="1400" y="802" text-anchor="middle" font-family="${MONO}" font-size="24" fill="#140d05">git clone <url></text>
+    <text x="1400" y="802" text-anchor="middle" font-family="${MONO}" font-size="24" fill="#140d05">git clone \u0026lt;url\u0026gt;</text>
   </g>
   <g id="cloneChip">
     <rect x="1250" y="688" width="300" height="40" fill="${PANEL}" stroke="${LEAF}" stroke-width="2" stroke-dasharray="8 6"/>
