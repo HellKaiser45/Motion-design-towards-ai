@@ -29,7 +29,7 @@ loop and **without** losing the `seek(t)` determinism contract.
 - [x] 3. Wire `stage.bridge` into `createStage`, export from package root
 - [x] 4. `animate` score verb: schema tokens, validation, compiler, tests
 - [x] 5. `bridge.channel()` custom bindings (uniforms etc.) + tests
-- [ ] 6. `bridge.project(name)` 3D -> screen px (for DOM/SVG overlays) + tests
+- [x] 6. `bridge.project(name)` 3D -> screen px (for DOM/SVG overlays) + tests
 - [ ] 7. Docs (AGENTS.md, README), example spec
 
 ## Log
@@ -40,3 +40,4 @@ loop and **without** losing the `seek(t)` determinism contract.
 - step 3: `stage.bridge` wired into `createStage` (disposed with the stage), `createBridge` + `BRIDGE_PROPS` exported from the package root; 3 tests (116 total). Note: GSAP rounds tweened values to ~1e-6 — compare with tolerance, as existing tests do.
 - step 4: `animate` score verb (params = BRIDGE_PROPS, opacity 0..1, empty/missing `with` rejected, did-you-mean on property names, DOM targets warn); 10 tests (126 total).
 - step 5: `bridge.channel(id, {target,path}|{get,set})` + `channelValues()` — tween shader uniforms / morph influences / anything on the stage timeline; 8 tests (134 total).
+- step 6: `bridge.project(name)` -> `{ x, y, depth, onScreen }` in render px (normalized 0..1 when no size given); stage tracks the fitted view size on resize; 6 tests (140 total).

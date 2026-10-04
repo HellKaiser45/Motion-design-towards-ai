@@ -76,6 +76,9 @@ export function createStage(spec, options = {}) {
     height: height ?? normalized.meta.size.height,
   };
 
+  // Current render size (fitted size after browser resize); read by bridge.project().
+  let viewSize = { ...size };
+
   // Canvas resolution happens before the WebGL probe so the display/mount
   // lifecycle works even when rendering is unavailable (or fails later).
   let renderer = null;
@@ -155,6 +158,7 @@ export function createStage(spec, options = {}) {
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    viewSize = { width: w, height: h };
     return { width: w, height: h };
   }
 
@@ -205,7 +209,7 @@ export function createStage(spec, options = {}) {
 
   // Bridge: DOM-style animation handles (x, rotateY, opacity, ...) for 3D
   // objects. Created before the score compiles so cues can use it.
-  const bridge = createBridge({ objects, lights, camera, scene });
+  const bridge = createBridge({ objects, lights, camera, scene, getSize: () => viewSize });
 
   const stage = { timeline, objects, lights, camera, scene, bridge };
   function compileScore(score) {

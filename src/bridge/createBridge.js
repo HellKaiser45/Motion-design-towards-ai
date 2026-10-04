@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { BRIDGE_PROPS } from '../spec/schema.js';
 
 /**
@@ -58,9 +59,11 @@ function makeProxy(node) {
 }
 
 /**
- * @param {{ objects: Map, lights: Map, camera: object, scene: object }} ctx
+ * @param {{ objects: Map, lights: Map, camera: object, scene: object, getSize?: () => {width:number,height:number} }} ctx
  *   Name registries the bridge resolves against (same order as the score
- *   compiler: objects, lights, then reserved `camera` / `scene`).
+ *   compiler: objects, lights, then reserved `camera` / `scene`). `getSize`
+ *   gives the current render size for project(); without it project()
+ *   returns normalized 0..1 coordinates.
  */
 export function createBridge(ctx) {
   const { objects, lights, camera, scene } = ctx;
@@ -170,11 +173,39 @@ export function createBridge(ctx) {
     return out;
   }
 
+  const projected = new THREE.Vector3();
+
+  /**
+   * Screen position of a target's world origin, in render pixels (top-left
+   * origin, y down) — the coordinates an SVG/DOM overlay needs to follow a 3D
+   * object. Pure function of the current scene state, so after stage.seek(t)
+   * the answer is deterministic.
+   * @returns {{ x: number, y: number, depth: number, onScreen: boolean }}
+   *   depth is NDC z (-1 near .. 1 far); onScreen = inside the frustum.
+   */
+  function project(ref) {
+    if (disposed) throw new Error('bridge is disposed.');
+    const node = resolve(ref);
+    // Matrices are normally refreshed by render(); refresh here so project()
+    // is correct headless and right after a seek.
+    camera.updateMatrixWorld(true);
+    node.updateWorldMatrix(true, false);
+    projected.setFromMatrixPosition(node.matrixWorld).project(camera);
+    const { width, height } = ctx.getSize?.() ?? { width: 1, height: 1 };
+    const inFront = projected.z > -1 && projected.z < 1;
+    return {
+      x: (projected.x * 0.5 + 0.5) * width,
+      y: (1 - (projected.y * 0.5 + 0.5)) * height,
+      depth: projected.z,
+      onScreen: inFront && Math.abs(projected.x) <= 1 && Math.abs(projected.y) <= 1,
+    };
+  }
+
   function dispose() {
     disposed = true;
     proxies = new WeakMap();
     channelMap.clear();
   }
 
-  return { object, snapshot, channel, channelValues, props: Object.keys(BRIDGE_PROPS), dispose };
+  return { object, snapshot, channel, channelValues, project, props: Object.keys(BRIDGE_PROPS), dispose };
 }
