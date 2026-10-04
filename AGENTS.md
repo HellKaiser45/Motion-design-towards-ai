@@ -8,7 +8,7 @@ Implemented:
 
 - `src/spec/schema.js` — single source of truth for the token vocabulary (pure data module, no three.js/gsap imports). `describeTokens()` emits the full vocabulary as JSON.
 - `src/spec/validate.js` — `validateSpec()` / `normalizeSpec()`: structured errors with did-you-mean suggestions and JSON-pointer paths rooted at `/`.
-- `src/stage/createStage.js` — `createStage(spec)` builds renderer/scene/camera/lights/objects and exposes `timeline` (a single paused GSAP timeline), `objects` (name -> mesh registry), `lights` (name -> light registry), and `seek/play/pause/render/dispose`. Works headless in Node (renderer auto-skips without WebGL).
+- `src/stage/createStage.js` — `createStage(spec)` builds renderer/scene/camera/lights/objects and exposes `timeline` (a single paused GSAP timeline), `objects` (name -> mesh registry), `lights` (name -> light registry), `canvas` (the canvas in use, or null headless), and `seek/play/pause/render/dispose`. Works headless in Node (renderer auto-skips without WebGL). Without `options.canvas` and when a DOM exists, it auto-creates a canvas and mounts it to `document.body` per the top-level `display` token (`fit: cover|contain`, `position: fixed|absolute`, `mount: body|none`), adds a window resize listener, and removes both on `dispose()`. A caller-provided `options.canvas` is never styled/mounted/resize-managed.
 - Tests: `npm test` (node --test).
 
 Not yet implemented (Phase 2+): score compiler (cues -> GSAP timeline), SVG overlay layer, decal bridge, render/verdict tooling, docs.

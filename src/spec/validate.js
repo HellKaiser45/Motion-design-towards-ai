@@ -140,7 +140,7 @@ function validateMeta(meta, errors) {
     if (!isPlainObject(size)) {
       errors.push(err(`${path}/size`, 'meta.size must be an object with width and height.'));
     } else {
-      checkUnknownKeys(size, ['width', 'height'], `${path}/size`, errors);
+      checkUnknownKeys(size, ['width', 'height'], path, errors);
       for (const k of ['width', 'height']) {
         if (k in size) {
           const v = size[k];
@@ -168,6 +168,35 @@ function validateCamera(camera, errors) {
   }
   if ('position' in camera) validateVector(camera.position, `${path}/position`, errors, { what: 'camera.position' });
   if ('lookAt' in camera) validateVector(camera.lookAt, `${path}/lookAt`, errors, { what: 'camera.lookAt' });
+}
+
+function validateDisplay(display, errors) {
+  const path = '/display';
+  if (!isPlainObject(display)) {
+    errors.push(err(path, 'display must be an object.'));
+    return;
+  }
+  const enums = {
+    fit: ['cover', 'contain'],
+    position: ['fixed', 'absolute'],
+    mount: ['body', 'none'],
+  };
+  const allowed = Object.keys(enums);
+  checkUnknownKeys(display, allowed, path, errors);
+  for (const key of allowed) {
+    if (key in display) {
+      const v = display[key];
+      if (typeof v !== 'string' || !enums[key].includes(v)) {
+        errors.push(
+          err(
+            `${path}/${key}`,
+            `display.${key} must be one of: ${enums[key].join(', ')}.`,
+            suggest(v, enums[key])
+          )
+        );
+      }
+    }
+  }
 }
 
 function validateLight(light, index, seenNames, errors) {
@@ -297,10 +326,11 @@ export function validateSpec(spec) {
   if (!isPlainObject(spec)) {
     return { ok: false, errors: [err('/', 'spec must be a JSON object.')] };
   }
-  const allowedTop = ['meta', 'camera', 'lights', 'objects'];
+  const allowedTop = ['meta', 'camera', 'display', 'lights', 'objects'];
   checkUnknownKeys(spec, allowedTop, '/', errors);
   if ('meta' in spec) validateMeta(spec.meta, errors);
   if ('camera' in spec) validateCamera(spec.camera, errors);
+  if ('display' in spec) validateDisplay(spec.display, errors);
   if ('lights' in spec) {
     if (!Array.isArray(spec.lights)) {
       errors.push(err('/lights', 'lights must be an array.'));
@@ -346,6 +376,12 @@ export function normalizeSpec(spec, { skipValidation = false } = {}) {
     if ('fov' in spec.camera) out.camera.fov = spec.camera.fov;
     if ('position' in spec.camera) out.camera.position = [...spec.camera.position];
     if ('lookAt' in spec.camera) out.camera.lookAt = [...spec.camera.lookAt];
+  }
+  out.display = { ...DEFAULTS.display };
+  if (spec.display) {
+    for (const key of Object.keys(DEFAULTS.display)) {
+      if (key in spec.display) out.display[key] = spec.display[key];
+    }
   }
   out.lights = (spec.lights ?? []).map((light) => {
     const l = {

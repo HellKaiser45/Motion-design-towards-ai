@@ -44,6 +44,11 @@ export const DEFAULTS = Object.freeze({
     position: Object.freeze([2, 3, 4]),
     target: undefined,
   }),
+  display: Object.freeze({
+    fit: 'cover',
+    position: 'fixed',
+    mount: 'body',
+  }),
   object: Object.freeze({
     material: Object.freeze({
       preset: 'standard',
@@ -84,6 +89,11 @@ export function describeTokens() {
         fov: 'number 1..179; default 50',
         position: '[x, y, z]; default [4, 3, 8]',
         lookAt: '[x, y, z]; default [0, 0, 0]',
+      },
+      display: {
+        fit: "'cover' | 'contain'; cover fills the viewport, contain letterboxes to meta.size aspect; default 'cover'",
+        position: "'fixed' | 'absolute'; CSS position of the auto-mounted canvas; default 'fixed'",
+        mount: "'body' | 'none'; 'body' appends the canvas to document.body, 'none' leaves it detached; default 'body'",
       },
       lights: {
         name: 'unique non-empty string, required',
