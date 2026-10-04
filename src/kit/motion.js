@@ -191,6 +191,110 @@ export async function createMotion(spec) {
     named.set(name, { kind: 'light', node: light, type: def.type });
   }
 
+  // ---------- SVG element prep (shared by overlay + decals) ----------
+  const svgStates = new Map(); // element -> state
+
+  // data-split: one <tspan class="ch"> per character; data-origin: per-element
+  // transform-origin (default = fill-box center). Then register every element.
+  function prepSvg(svg, decal = null) {
+    for (const text of svg.querySelectorAll('[data-split]')) {
+      const chars = [...text.textContent];
+      text.textContent = '';
+      for (const ch of chars) {
+        const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+        tspan.setAttribute('class', 'ch');
+        tspan.textContent = ch === ' ' ? '\u00A0' : ch;
+        text.appendChild(tspan);
+      }
+    }
+    const KEY = { left: '0%', right: '100%', center: '50%', top: '0%', bottom: '100%' };
+    for (const el of svg.querySelectorAll('*')) {
+      el.style.transformBox = 'fill-box';
+      const raw = el.getAttribute('data-origin');
+      if (raw) {
+        const [hx, vy] = raw.trim().split(/\s+/);
+        el.style.transformOrigin = `${KEY[hx] ?? '50%'} ${KEY[vy] ?? '50%'}`;
+      } else {
+        el.style.transformOrigin = '50% 50%';
+      }
+      svgStates.set(el, { el, x: 0, y: 0, rotate: 0, scale: 1, scaleX: 1, scaleY: 1, blur: 0, opacity: null, draw: null, drawLen: null, _decal: decal });
+    }
+  }
+
+  function parseSvgMarkup(svgStr, where) {
+    // HTML parser on purpose: forgiving (bare attributes, no xmlns needed).
+    const tpl = document.createElement('template');
+    tpl.innerHTML = String(svgStr).trim();
+    const svg = tpl.content.querySelector('svg');
+    if (!svg) throw new Error(`${where} must contain an <svg> root element`);
+    return svg;
+  }
+
+  // ---------- decals (live SVG textures on 3D surfaces) ----------
+  const decals = new Map(); // name -> { svg, canvas, texture, dirty, decoding, redraw }
+
+  function scheduleDecalRaster(d) {
+    if (d.decoding) { d.redraw = true; return; }
+    d.decoding = true;
+    const xml = new XMLSerializer().serializeToString(d.svg);
+    const img = new Image();
+    img.onload = () => {
+      const ctx = d.canvas.getContext('2d');
+      ctx.clearRect(0, 0, d.canvas.width, d.canvas.height);
+      ctx.drawImage(img, 0, 0, d.canvas.width, d.canvas.height);
+      d.texture.needsUpdate = true;
+      d.decoding = false;
+      if (d.redraw) { d.redraw = false; scheduleDecalRaster(d); }
+    };
+    img.onerror = () => { d.decoding = false; d.redraw = false; };
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(xml)}`;
+  }
+
+  function makeDecal(name, def) {
+    const w = def.width ?? 1;
+    const h = def.height ?? 1;
+    const res = def.res ?? 512;
+    const svg = parseSvgMarkup(def.svg, `[motion] decal "${name}"`);
+    const vb = (svg.getAttribute('viewBox') ?? '0 0 1 1').split(/[\s,]+/).map(Number);
+    const vw = vb[2] > 0 ? vb[2] : 1;
+    const vh = vb[3] > 0 ? vb[3] : 1;
+
+    // must stay in the DOM (hidden) so getTotalLength() and layout work for `draw`
+    const holder = document.createElement('div');
+    Object.assign(holder.style, { position: 'fixed', left: '-9999px', top: '0', overflow: 'hidden' });
+    holder.style.width = `${vw}px`;
+    holder.style.height = `${vh}px`;
+    // bake the viewBox dims into the svg's intrinsic size: when serialized to a
+    // data URL for rasterization, percentage sizing would fall back to the 300x150
+    // default viewport and distort the face on the canvas.
+    svg.setAttribute('width', String(vw));
+    svg.setAttribute('height', String(vh));
+    holder.appendChild(svg);
+    document.body.appendChild(holder);
+
+    const decal = { dirty: false, decoding: false, redraw: false };
+    prepSvg(svg, decal);
+
+    const cw = vw >= vh ? res : Math.round(res * (vw / vh));
+    const ch = vw >= vh ? Math.round(res * (vh / vw)) : res;
+    const canvas = document.createElement('canvas');
+    canvas.width = cw;
+    canvas.height = ch;
+    canvas.getContext('2d').clearRect(0, 0, cw, ch); // transparent until first decode
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    Object.assign(decal, { svg, canvas, texture });
+    decals.set(name, decal);
+
+    const mat = new THREE.MeshBasicMaterial({
+      map: texture, transparent: true, toneMapped: false,
+      depthWrite: false, opacity: def.opacity ?? 1,
+    });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+    mesh.renderOrder = 1; // draw after parent cube
+    return mesh;
+  }
+
   // ---------- objects (pass 1: create nodes, pass 2: link parents) ----------
   function makeMaterial(def) {
     const m = def.material ?? {};
@@ -238,6 +342,10 @@ export async function createMotion(spec) {
     switch (def.type) {
       case 'group': {
         entry.node = new THREE.Group();
+        break;
+      }
+      case 'decal': {
+        entry.node = makeDecal(name, def);
         break;
       }
       case 'particles': {
@@ -288,6 +396,11 @@ export async function createMotion(spec) {
           case 'torus': geo = new THREE.TorusGeometry(def.radius, def.tube, 32, def.seg ?? 220); break;
           case 'sphere': geo = new THREE.SphereGeometry(def.radius, 48, 32); break;
           case 'ring': geo = new THREE.RingGeometry(def.inner, def.outer, 64); break;
+          case 'box': {
+            const s = Array.isArray(def.size) ? def.size : [def.size ?? 1, def.size ?? 1, def.size ?? 1];
+            geo = new THREE.BoxGeometry(s[0], s[1], s[2]);
+            break;
+          }
           default: throw new Error(`[motion] object "${name}" has unknown type "${def.type}"`);
         }
         const { mat, base, glow, preset } = makeMaterial(def);
@@ -321,14 +434,8 @@ export async function createMotion(spec) {
 
   // ---------- SVG layer ----------
   let svgRoot = null;
-  const svgStates = new Map(); // element -> state
   if (spec.svg != null) {
-    // HTML parser on purpose: forgiving (bare attributes, no xmlns needed) —
-    // what LLM-written SVG needs.
-    const tpl = document.createElement('template');
-    tpl.innerHTML = spec.svg.trim();
-    svgRoot = tpl.content.querySelector('svg');
-    if (!svgRoot) throw new Error('[motion] "svg" must contain an <svg> root element');
+    svgRoot = parseSvgMarkup(spec.svg, '[motion] "svg"');
     if (!svgRoot.getAttribute('viewBox')) svgRoot.setAttribute('viewBox', `0 0 ${DW} ${DH}`);
 
     const overlay = document.createElement('div');
@@ -339,34 +446,7 @@ export async function createMotion(spec) {
     overlay.appendChild(svgRoot);
     root.appendChild(overlay);
 
-    // data-split: one <tspan class="ch"> per character
-    for (const text of svgRoot.querySelectorAll('[data-split]')) {
-      const chars = [...text.textContent];
-      text.textContent = '';
-      for (const ch of chars) {
-        const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-        tspan.setAttribute('class', 'ch');
-        tspan.textContent = ch === ' ' ? '\u00A0' : ch;
-        text.appendChild(tspan);
-      }
-    }
-
-    // data-origin: per-element transform-origin (default = fill-box center)
-    const KEY = { left: '0%', right: '100%', center: '50%', top: '0%', bottom: '100%' };
-    for (const el of svgRoot.querySelectorAll('*')) {
-      el.style.transformBox = 'fill-box';
-      const raw = el.getAttribute('data-origin');
-      if (raw) {
-        const [hx, vy] = raw.trim().split(/\s+/);
-        el.style.transformOrigin = `${KEY[hx] ?? '50%'} ${KEY[vy] ?? '50%'}`;
-      } else {
-        el.style.transformOrigin = '50% 50%';
-      }
-    }
-
-    for (const el of svgRoot.querySelectorAll('*')) {
-      svgStates.set(el, { el, x: 0, y: 0, rotate: 0, scale: 1, scaleX: 1, scaleY: 1, blur: 0, opacity: null, draw: null, drawLen: null });
-    }
+    prepSvg(svgRoot);
   } else if (spec.anchors) {
     warn('[motion] "anchors" given but no "svg" — anchors ignored');
   }
@@ -424,7 +504,25 @@ export async function createMotion(spec) {
       warn(`[motion] unknown target "${target}" (no svg layer) — skipped`);
       return [];
     }
-    const els = [...svgRoot.querySelectorAll(target)];
+    // explicit decal scope: 'face #id' searches only that decal's svg
+    const sp = target.indexOf(' ');
+    if (sp > 0) {
+      const decal = decals.get(target.slice(0, sp));
+      if (decal) {
+        const els = [...decal.svg.querySelectorAll(target.slice(sp + 1))];
+        if (!els.length) warn(`[motion] selector "${target}" matched 0 elements in decal svg — skipped`);
+        return els.map((el) => svgStates.get(el));
+      }
+    }
+    let els = [...svgRoot.querySelectorAll(target)];
+    for (const d of decals.values()) {
+      const m = [...d.svg.querySelectorAll(target)];
+      if (m.length) {
+        if (els.length) warn(`[motion] selector "${target}" matches elements in both the overlay and a decal — using the overlay`);
+        else els = m;
+        break;
+      }
+    }
     if (!els.length) warn(`[motion] selector "${target}" matched 0 SVG elements — skipped`);
     return els.map((el) => svgStates.get(el));
   }
@@ -637,6 +735,14 @@ export async function createMotion(spec) {
       }
     }
 
+    // decal rasterization: at most one scheduled per render call, guarded
+    for (const d of decals.values()) {
+      if (d.dirty) {
+        d.dirty = false;
+        scheduleDecalRaster(d);
+      }
+    }
+
     // camera
     const az = camState.azimuth * D2R;
     const elv = camState.elevation * D2R;
@@ -688,6 +794,7 @@ export async function createMotion(spec) {
       else if (prop === 'scale') st.scale = value;
       else st[prop] = value;
       st._touched = true;
+      if (st._decal) st._decal.dirty = true;
       return;
     }
     const entry = ref;
@@ -803,6 +910,8 @@ export async function createMotion(spec) {
     stop,
     seek: seek,
     render,
+    time: () => _t,
+    playing: () => _playing,
   };
   if (capture) window.__agentStageMotion = motion;
   return motion;
