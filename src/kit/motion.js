@@ -476,7 +476,12 @@ export async function createMotion(spec) {
   // ---------- post chain ----------
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  const bloom = new THREE3Vector2placeholder(RW, RH);
+  const bloom = new UnrealBloomPass(
+    new THREE.Vector2(RW, RH),
+    spec.bloom?.strength ?? 0.35,
+    spec.bloom?.radius ?? 0.4,
+    spec.bloom?.threshold ?? 0.92
+  );
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
   composer.setSize(RW, RH);
