@@ -1,15 +1,19 @@
 {
   "name": "agent-stage",
-  "version": "0.2.0",
-  "private": true,
+  "version": "1.0.0",
+  "description": "Declarative, JSON-serializable 3D/2D animation spec framework wrapping three.js + GSAP, designed for LLM/agent authoring.",
   "type": "module",
-  "description": "Zero-build SVG + Three.js motion framework for AI agents",
-  "scripts": {
-    "serve": "npx serve .",
-    "render": "node tools/render.mjs",
-    "check": "node tools/render.mjs examples/hello-motion --check && node tools/render.mjs examples/nova-core --check",
-    "test": "node tests/run.mjs && node tests/pack-instance.test.mjs && node tests/driver.test.mjs"
+  "main": "./src/index.js",
+  "exports": "./src/index.js",
+  "engines": {
+    "node": ">=20"
   },
-  "dependencies": { "three": "0.160.0" },
-  "devDependencies": { "playwright-core": "^1.48.0" }
+  "scripts": {
+    "test": "node --test tests/"
+  },
+  "dependencies": {
+    "gsap": "3.15.0",
+    "three": "0.186.1"
+  },
+  "license": "MIT"
 }

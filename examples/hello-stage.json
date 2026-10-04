@@ -1,0 +1,20 @@
+{
+  "meta": {
+    "title": "hello stage",
+    "background": "#0a0a0f"
+  },
+  "camera": {
+    "position": [3, 2, 5],
+    "lookAt": [0, 0, 0]
+  },
+  "lights": [
+    { "name": "key", "type": "directional" }
+  ],
+  "objects": [
+    {
+      "name": "hero",
+      "type": "box",
+      "material": { "preset": "neon", "color": "#22d3ee" }
+    }
+  ]
+}

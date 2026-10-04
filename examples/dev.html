@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>agent-stage dev</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.186.1/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.186.1/examples/jsm/",
+          "gsap": "https://unpkg.com/gsap@3.15.0/index.js",
+          "agent-stage": "../src/index.js"
+        }
+      }
+    </script>
+    <style>
+      body { margin: 0; }
+      canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      import { createStage } from 'agent-stage';
+
+      const spec = await fetch('./hello-stage.json').then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      });
+
+      const stage = createStage(spec);
+      if (!stage.ok) throw new Error(JSON.stringify(stage.errors));
+
+      stage.play();
+      console.log('stage running', stage);
+    </script>
+  </body>
+</html>
