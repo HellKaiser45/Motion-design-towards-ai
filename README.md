@@ -2,6 +2,8 @@
 
 Zero-build-step SVG + Three.js animation framework for AI agents. The only dependency is three.js, loaded via CDN importmap (or a local `node_modules` install for offline use).
 
+**Start here if you are an AI agent: [AGENTS.md](AGENTS.md)** — the opinionated authoring rules — and [docs/agent-authoring.md](docs/agent-authoring.md), the agent contract (semantic targets, compact keyframes, playback model).
+
 Two layers, one philosophy — **everything is a pure function of logical time** (seek-safe, export-safe, render-tool verifiable):
 
 1. **Engine layer** (`src/`) — the interactive avatar runtime: registry packs, engines (prop/WAAPI/SMIL), the AgentDriver with channels and blend policies, bridges and export backends. See `docs/pack-schema.md`.
@@ -42,7 +44,8 @@ The framework ships a headless verification tool so an agent can **check its own
 
 ```bash
 npm install                # three + playwright-core
-npm test                   # dependency-free unit tests (easing, pack normalization, review helpers)
+npm test                   # 51 dependency-free unit tests (easing, pack normalization,
+                           #  immutable definitions/instances, semantic targets, driver)
 npm run check              # headless-render both kit examples, report JSON
 node tools/render.mjs examples/cube-reveal --chrome $(which chrome) \
      --size 1280x720 --frames 12    # PNG frames + contact sheet + JSON report
@@ -77,17 +80,22 @@ Notable kit features: `box` geometry, and **`decal` objects** — an inline SVG 
 - **Recoverable issues warn** (unknown score target/selector/prop → collected in `warnings`, visible in the render tool report).
 - **Failures are visible.** Every example page shows a red banner on any page error — an empty stage is never a mystery.
 - Compact authoring forms are accepted and normalized: keyframe tuples `[0, 0.5]`, `[1, 1, 'easeOutExpo']` and dotted channels `'position.y'` all compile to the canonical schema (`normalizePack`, also exported).
+- **Semantic targets replace engines/selectors in new data**: register `registry.registerTarget('face.smile', {svg:'face', selector:'#m-smile'})` and author `{target:'face.smile', keys:[...]}` — the compiler picks the engine. Legacy engine-named tracks still compile unchanged.
+- **Packs are immutable definitions; playback is isolated**. `compile()` builds a definition; `definition.createInstance()` (the driver does this per play) yields an independent instance — the same pack on several channels can no longer corrupt shared state. Loop overrides never mutate the definition.
 
 ## Structure
 
 ```
 agent-stage/
+  AGENTS.md    # the AI authoring rules (read this first)
   src/
     core/      # stage, timeline, events, easing (validated, cssLinear-sampled)
     engines/   # smil, waapi, prop animation engines
     layers/    # svg-layer, three-layer
-    bridges/   # anchor-bridge, texture-bridge
-    driver/    # agent-driver, pack-compiler (+normalizePack), registry
+    bridges/   # anchor-bridge, texture-bridge (sample-on-seek capable)
+    driver/    # agent-driver (isolated instances), pack-compiler (immutable
+               #   definitions + createInstance + compact/semantic forms),
+               #   registry (assets, packs, semantic targets)
     export/    # compositor, frame-renderer, backends (webm/mp4/png)
     kit/       # createMotion + review.js (console/review protocol)
   review/      # manifest.json — the submissions the console lists
@@ -96,7 +104,7 @@ agent-stage/
   tests/        # dependency-free node test suite
   assets/       # shared svg assets
   examples/     # cube-agent (engines), hello-motion + nova-core + cube-reveal (kit)
-  docs/         # pack-schema.md, kit.md
+  docs/         # pack-schema.md, kit.md, agent-authoring.md
 ```
 
 ## Troubleshooting
