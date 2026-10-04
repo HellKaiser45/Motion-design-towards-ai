@@ -4,6 +4,7 @@
  *         5.6–6.8 charge-up · 6.8 DETONATION (flash, shockwave, sparks, camera punch) · 7.1 title · 11.2 fade (loops cleanly)
  */
 import { createMotion, rng, range } from 'agent-stage/kit/index.js';
+import { attachReview } from 'agent-stage/kit/review.js';
 
 const W = 1920, H = 1080, CX = W / 2, CY = H / 2;
 const BOOM = 6.8; // the one number everything else is timed against
@@ -198,4 +199,4 @@ createMotion({
   objects, lights, svg,
   anchors: { '#c1': { to: 'core', offset: [1.0, 0.9, 0] }, '#c2': { to: 'sat2' } },
   score,
-}).then((m) => m.play());
+}).then((m) => attachReview(m));
