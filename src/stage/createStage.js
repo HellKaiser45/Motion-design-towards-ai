@@ -7,6 +7,7 @@ import { createCamera } from '../camera/createCamera.js';
 import { createLights } from '../lights/createLights.js';
 import { createOverlay } from '../svg/createOverlay.js';
 import { compileScore as compileCues } from '../score/compile.js';
+import { expandScore } from '../score/expand.js';
 import { createBridge } from '../bridge/createBridge.js';
 
 // Probed per createStage call instead of memoized at module level: caching a
@@ -117,10 +118,20 @@ export function createStage(spec, options = {}) {
   const camera = createCamera(normalized.camera, size.width / size.height);
   // Object registry: named objects are addressable via stage.objects.
   const objects = new Map();
+  const materialWarnings = [];
+  const readiness = [];
   for (const def of normalized.objects) {
-    const mesh = buildObject(def);
+    const mesh = buildObject(def, materialWarnings, readiness);
     scene.add(mesh);
     objects.set(def.name, mesh);
+  }
+  // Parenting: children are reparented out of the scene into their parent's
+  // tree (THREE moves them automatically); roots remain direct scene children.
+  for (const def of normalized.objects) {
+    if (!def.parent) continue;
+    const child = objects.get(def.name);
+    const parent = objects.get(def.parent);
+    if (child && parent) parent.add(child);
   }
 
   // Light registry: named lights are addressable via stage.lights.
@@ -211,15 +222,33 @@ export function createStage(spec, options = {}) {
   // objects. Created before the score compiles so cues can use it.
   const bridge = createBridge({ objects, lights, camera, scene, getSize: () => viewSize });
 
-  const stage = { timeline, objects, lights, camera, scene, bridge };
+  const stage = { timeline, objects, lights, camera, scene, bridge, materialWarnings };
+  // Every score goes through expansion (cue sequencing + meta.duration
+  // scaling) before compiling; expansion errors skip the offending cues but
+  // the rest still compiles.
+  function compileExpanded(expansion) {
+    const broken = new Set(expansion.brokenIndexes);
+    const clean = expansion.cues.filter((_, i) => !broken.has(i));
+    const res = compileCues(stage, clean);
+    return {
+      ok: res.ok && expansion.errors.length === 0,
+      errors: [...expansion.errors, ...res.errors],
+      warnings: [...expansion.warnings, ...res.warnings],
+      duration: res.duration,
+    };
+  }
+
+  // Live-append path: batches carry no meta, so they sequence within the batch
+  // (after/alongside reference ids in the same batch) and are not time-scaled.
   function compileScore(score) {
-    return compileCues(stage, score);
+    return compileExpanded(expandScore({ score: Array.isArray(score) ? score : [score] }));
   }
 
   // Score compile result (ok/errors/warnings); always present as a contract,
-  // empty when the spec has no score.
+  // empty when the spec has no score. The full spec is expanded so
+  // meta.duration scaling applies.
   const scoreCompile = spec.score
-    ? compileScore(normalized.score)
+    ? compileExpanded(expandScore(spec))
     : { ok: true, errors: [], warnings: [], duration: 0 };
 
   let disposed = false;
@@ -242,6 +271,19 @@ export function createStage(spec, options = {}) {
     if (disposed) return;
     timeline.time(seconds);
     render();
+  }
+
+  // Synchronous snapshot for exporters: seek exactly to t, render once, and
+  // return the PNG pixels — the clock never advances past the seek.
+  function captureFrame(t) {
+    if (!renderer || !renderCanvas || disposed) return null;
+    timeline.time(t);
+    render();
+    return renderCanvas.toDataURL('image/png');
+  }
+
+  function whenReady() {
+    return Promise.allSettled(readiness);
   }
 
   // Same disposed guard as seek: all time controls are no-ops after dispose.
@@ -314,6 +356,7 @@ export function createStage(spec, options = {}) {
     timeline,
     objects,
     lights,
+    materialWarnings,
     /**
      * Bridge (DOM-style 3D handles): `bridge.object(name)` returns a proxy with
      * x/y/z/rotateX-Z/scale/scaleX-Z/opacity that GSAP can tween directly on
@@ -338,6 +381,8 @@ export function createStage(spec, options = {}) {
     pause,
     seek,
     render,
+    captureFrame,
+    whenReady,
     dispose,
   };
 }

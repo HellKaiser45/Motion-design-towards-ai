@@ -35,7 +35,7 @@ export const SVG_SHAPE_TYPES = Object.freeze({
 });
 
 export const SVG_TEXT_PARAMS = Object.freeze([
-  'id', 'class', 'content', 'split', 'tag', 'x', 'y', 'size', 'weight', 'family', 'color', 'align',
+  'id', 'class', 'content', 'split', 'tag', 'x', 'y', 'size', 'weight', 'family', 'color', 'align', 'opacity',
 ]);
 
 export const SVG_SPLITS = Object.freeze(['char', 'word', 'none']);
@@ -83,12 +83,14 @@ export const DEFAULTS = Object.freeze({
       family: 'sans-serif',
       color: '#ffffff',
       align: 'start',
+      opacity: 1,
     }),
     shape: Object.freeze({
       class: undefined,
       stroke: '#ffffff',
       fill: 'none',
       strokeWidth: 1,
+      opacity: 1,
     }),
   }),
   object: Object.freeze({
@@ -143,6 +145,80 @@ export const SCORE_VERBS = Object.freeze({
     ),
   }),
   'look-at': Object.freeze({ props: 'object.lookAt via onUpdate', params: Object.freeze({ x: 'number', y: 'number', z: 'number', target: "object name — look at that object's position" }) }),
+  orbit: Object.freeze({
+    props: 'camera position on a circle around center (camera only)',
+    params: Object.freeze({
+      center: '[x, y, z]; default [0, 0, 0]',
+      from: 'radians; default atan2 of camera position relative to center in XZ',
+      to: 'radians, REQUIRED; end angle',
+      radius: 'number > 0; default distance from camera position to center',
+      height: 'number; default camera y',
+    }),
+  }),
+  dolly: Object.freeze({
+    props: 'camera distance from center along the view direction (camera only)',
+    params: Object.freeze({
+      center: '[x, y, z]; default [0, 0, 0]',
+      from: 'number > 0; default current distance',
+      to: 'number > 0, REQUIRED; end distance',
+    }),
+  }),
+  zoom: Object.freeze({
+    props: 'camera fov in degrees (camera only)',
+    params: Object.freeze({
+      from: 'number 1..179; default camera fov',
+      to: 'number 1..179, REQUIRED; end fov',
+    }),
+  }),
+  'move-along': Object.freeze({
+    props: 'position along a path (3D objects, lights, camera)',
+    params: Object.freeze({
+      points: 'array of [x, y, z] points, >= 2, REQUIRED',
+      smooth: 'boolean; default true (Catmull-Rom when >= 3 points)',
+      closed: 'boolean; default false (curve loops back to the first point)',
+      orient: 'boolean; default false (look along the path direction while moving)',
+    }),
+  }),
+});
+
+// Intent presets: named moves LLMs pick instead of inventing easing/timing.
+// Each preset is a MACRO over existing score verbs — expansion happens in
+// expandScore before sequencing resolution. Params are described as plain
+// strings so the vocabulary stays JSON-emittable via describeTokens().
+export const SCORE_PRESETS = Object.freeze({
+  entrance: Object.freeze({
+    params: Object.freeze({
+      from: "'below'|'above'|'left'|'right'|'front'|'back'; default 'below'",
+      distance: 'number, world units; default 3',
+    }),
+  }),
+  exit: Object.freeze({
+    params: Object.freeze({
+      to: "'below'|'above'|'left'|'right'|'front'|'back'; default 'below'",
+      distance: 'number, world units; default 3',
+    }),
+  }),
+  pop: Object.freeze({ params: Object.freeze({}) }),
+  emphasis: Object.freeze({ params: Object.freeze({ amount: 'scale multiplier; default 1.35' }) }),
+  pulse: Object.freeze({
+    params: Object.freeze({ amount: 'scale multiplier; default 1.08', count: 'pulse cycles; default 3' }),
+  }),
+  float: Object.freeze({ params: Object.freeze({ height: 'number, world units; default 0.4', count: 'float cycles; default 2' }) }),
+  flip: Object.freeze({ params: Object.freeze({ axis: "'x'|'y'; default 'y'", turns: 'number of full turns; default 1' }) }),
+  shake: Object.freeze({
+    params: Object.freeze({ intensity: 'number, world units; default 0.3', count: 'number of shakes; default 6' }),
+  }),
+  orbit: Object.freeze({
+    params: Object.freeze({
+      center: '[x, y, z]; default [0, 0, 0]',
+      radius: 'number, world units; default 3',
+      revolutions: 'number; default 1',
+      steps: 'keyframes on the circle; default 16',
+    }),
+  }),
+  'reveal-text': Object.freeze({
+    params: Object.freeze({ of: "'chars'|'words'; default 'chars'", stagger: 'seconds per item; default 0.03' }),
+  }),
 });
 
 // Reserved non-registry targets for cue routing.
@@ -204,8 +280,13 @@ export function describeTokens() {
     backgroundPresets: { ...BACKGROUND_PRESETS },
     bridgeProps: { ...BRIDGE_PROPS },
     scoreVerbs: JSON.parse(JSON.stringify(SCORE_VERBS)),
+    scorePresets: JSON.parse(JSON.stringify(SCORE_PRESETS)),
     scoreEases: { ...SCORE_EASES },
     scoreDefaults: JSON.parse(JSON.stringify(SCORE_DEFAULTS)),
+    scoreCueFields: [
+      'do', 'to', 'at', 'dur', 'ease', 'repeat', 'pingpong', 'stagger', 'with',
+      'id', 'after', 'alongside', 'offset', 'from',
+    ],
     scoreRepeatCap: SCORE_REPEAT_CAP,
     scoreReservedTargets: [...SCORE_RESERVED_TARGETS],
     lightTypes: [...LIGHT_TYPES],
@@ -233,6 +314,7 @@ export function describeTokens() {
           family: 'string; font-family; default sans-serif',
           color: "'#rrggbb'; fill color; default '#ffffff'",
           align: "'start' | 'middle' | 'end'; text-anchor; default 'start'",
+          opacity: 'number 0..1; default 1',
         },
         shapes: {
           id: 'unique non-empty string, required; becomes the DOM id of the shape element',
@@ -242,6 +324,7 @@ export function describeTokens() {
           stroke: "'#rrggbb'; default '#ffffff'",
           fill: "'#rrggbb' | 'none'; default 'none'",
           strokeWidth: 'number; default 1',
+          opacity: 'number 0..1; default 1',
         },
       },
       meta: {
@@ -249,6 +332,7 @@ export function describeTokens() {
         background: "'#rrggbb' or one of the backgroundPresets names; default 'void'",
         fog: "{ color: '#rrggbb', near: number, far: number } — optional, all three required together",
         size: '{ width: int > 0, height: int > 0 }; default 1280x720',
+        duration: 'finite number > 0, optional; the whole score is time-scaled to fit exactly this duration (spin angles are preserved: with.speed scales by 1/factor)',
       },
       camera: {
         fov: 'number 1..179; default 50',
@@ -269,8 +353,9 @@ export function describeTokens() {
         target: '[x, y, z]; optional, directional/spot only',
       },
       score: {
-        cue: "{ do: verb, to: target, at: seconds, dur: seconds, ease: token, repeat: int, pingpong: bool, stagger: seconds, with: { ...verb params } } — flat array of cues",
+        cue: "{ do: verb, to: target, at: seconds, dur: seconds, ease: token, repeat: int, pingpong: bool, stagger: seconds, with: { ...verb params }, id, after, alongside, offset, from } — flat array of cues",
         verbs: 'one of scoreVerbs keys, required',
+        presets: 'scorePresets keys are intent macros: they expand to concrete cues (animate/move-to/fade) before sequencing; repeat/pingpong are owned by the preset — not allowed on preset cues',
         to: 'object name, light name, \'camera\', \'scene\', an array of such names (stagger), or a DOM selector (starts with #, . or svg)',
         at: 'number >= 0, seconds; default 0',
         dur: 'number >= 0, seconds; default 1',
@@ -279,6 +364,12 @@ export function describeTokens() {
         pingpong: 'boolean; maps to GSAP yoyo',
         stagger: 'number >= 0; applies when to is an array',
         with: 'verb params, keys per scoreVerbs[verb].params. `animate` requires at least one key (any bridgeProps name) and tweens them together on one cue; 3D targets only.',
+        id: 'unique non-empty string, optional; addressable by other cues via after/alongside',
+        after: "cue id; this cue starts when that cue (or cue group, end = at + stagger*(n-1) + dur*(repeat+1)) ENDS; mutually exclusive with at; forward references and arbitrary chains allowed",
+        alongside: "cue id; this cue starts at the SAME time that cue starts; mutually exclusive with at",
+        offset: 'finite number of seconds added to the resolved start (after/alongside/at); default 0; a resolved start below 0 is an error',
+        from: 'animate only: object of bridge props the target sits at before the tween starts (e.g. { y: -3, opacity: 0 }); same key/number rules as with',
+        sequencing: 'cues are sequenced with id/after/alongside/offset instead of hand-computed at values; cycles and unknown ids are structured errors',
       },
       objects: {
         name: 'unique non-empty string, required',
@@ -288,7 +379,9 @@ export function describeTokens() {
           color: "'#rrggbb'; default '#94a3b8'",
           opacity: 'number 0..1; default 1',
           emissive: "'#rrggbb'; neon only, default derived from color",
+          map: 'string URL (http(s):// or data:image/); texture applied headless only as a no-op warning',
         },
+        parent: "string name of another object in the spec; the object is parented to it (cycles, self-reference and unknown names are errors)",
         position: '[x, y, z]; default [0, 0, 0]',
         rotation: '[x, y, z] in radians; default [0, 0, 0]',
         scale: 'single number or [x, y, z]; normalized to [x, y, z]; default [1, 1, 1]',

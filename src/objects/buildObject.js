@@ -14,9 +14,9 @@ const GEOMETRY_BUILDERS = {
   ring: (p) => new THREE.RingGeometry(p.innerRadius, p.outerRadius, p.thetaSegments),
 };
 
-export function buildObject(def) {
+export function buildObject(def, warnings = [], readiness = []) {
   const geometry = GEOMETRY_BUILDERS[def.type](def.params);
-  const material = buildMaterial(def.material);
+  const material = buildMaterial(def.material, warnings, readiness);
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = def.name;
   mesh.position.set(def.position[0], def.position[1], def.position[2]);

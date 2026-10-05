@@ -9,9 +9,10 @@ import {
   isDomSelector,
 } from '../spec/schema.js';
 
-function err(path, message, suggestion) {
+function err(path, message, suggestion, patch) {
   const e = { path, message };
   if (suggestion !== undefined && suggestion !== null) e.suggestion = suggestion;
+  if (Array.isArray(patch) && patch.length > 0) e.patch = patch;
   return e;
 }
 
@@ -45,12 +46,19 @@ function resolveTarget(stage, name, errors, path) {
 
 function compileCue(stage, cue, errors, warnings) {
   const verb = cue.do;
-  const path = `/score/${cue._i}`;
-  const withParams = isPlainObject(cue.with) ? cue.with : {};
+  const path = `/score/${cue._i}`;  const withParams = isPlainObject(cue.with) ? cue.with : {};
   const dur = cue.dur ?? SCORE_DEFAULTS.dur;
   const at = cue.at ?? SCORE_DEFAULTS.at;
   const ease = SCORE_EASES[cue.ease ?? SCORE_DEFAULTS.ease];
   const tl = stage.timeline;
+
+  function requireCamera() {
+    if (live3d.length !== 1 || live3d[0] !== stage.camera) {
+      errors.push(err(path, `verb "${verb}" requires to: 'camera'.`));
+      return false;
+    }
+    return true;
+  }
 
   let repeat = cue.repeat ?? 0;
   if (repeat === -1 || repeat > SCORE_REPEAT_CAP) {
@@ -191,7 +199,18 @@ function compileCue(stage, cue, errors, warnings) {
         return;
       }
       const bridge = stage.bridge ?? createBridge(stage);
-      tl.to(live3d.map((o) => bridge.object(o)), { ...vars, ...base }, at);
+      const proxies = live3d.map((o) => bridge.object(o));
+      // `from` turns the tween into a fromTo so the target sits at the
+      // from-state for all t <= at (GSAP fromTo immediateRender).
+      if (isPlainObject(cue.from)) {
+        const fromVars = {};
+        for (const k of Object.keys(SCORE_VERBS.animate.params)) if (k in cue.from) fromVars[k] = cue.from[k];
+        if (Object.keys(fromVars).length > 0) {
+          tl.fromTo(proxies, fromVars, { ...vars, ...base }, at);
+          break;
+        }
+      }
+      tl.to(proxies, { ...vars, ...base }, at);
       break;
     }
     case 'look-at': {
@@ -219,6 +238,124 @@ function compileCue(stage, cue, errors, warnings) {
             yoyo,
             onUpdate() {
               o.lookAt(vec);
+            },
+          },
+          at,
+        );
+      }
+      break;
+    }
+    case 'orbit': {
+      if (!requireCamera()) break;
+      const w = isPlainObject(withParams) ? withParams : {};
+      const center = new THREE.Vector3(...(Array.isArray(w.center) ? w.center : [0, 0, 0]));
+      const camPos = stage.camera.position;
+      const from = w.from ?? Math.atan2(camPos.z - center.z, camPos.x - center.x);
+      const to = w.to;
+      const radius = w.radius ?? Math.hypot(camPos.x - center.x, camPos.z - center.z);
+      const height = w.height ?? camPos.y;
+      tl.to(
+        dummy,
+        {
+          t: 1,
+          duration: dur,
+          ease,
+          repeat,
+          yoyo,
+          onUpdate() {
+            const angle = from + (to - from) * dummy.t;
+            stage.camera.position.set(
+              center.x + Math.cos(angle) * radius,
+              height,
+              center.z + Math.sin(angle) * radius,
+            );
+            stage.camera.lookAt(center);
+          },
+        },
+        at,
+      );
+      break;
+    }
+    case 'dolly': {
+      if (!requireCamera()) break;
+      const w = isPlainObject(withParams) ? withParams : {};
+      const center = new THREE.Vector3(...(Array.isArray(w.center) ? w.center : [0, 0, 0]));
+      const camPos = stage.camera.position;
+      const dir = new THREE.Vector3().subVectors(camPos, center).normalize();
+      const from = w.from ?? camPos.distanceTo(center);
+      const to = w.to;
+      tl.to(
+        dummy,
+        {
+          t: 1,
+          duration: dur,
+          ease,
+          repeat,
+          yoyo,
+          onUpdate() {
+            const r = from + (to - from) * dummy.t;
+            stage.camera.position.set(center.x + dir.x * r, center.y + dir.y * r, center.z + dir.z * r);
+            stage.camera.lookAt(center);
+          },
+        },
+        at,
+      );
+      break;
+    }
+    case 'zoom': {
+      if (!requireCamera()) break;
+      const w = isPlainObject(withParams) ? withParams : {};
+      const from = w.from ?? stage.camera.fov;
+      const to = w.to;
+      tl.to(
+        dummy,
+        {
+          t: 1,
+          duration: dur,
+          ease,
+          repeat,
+          yoyo,
+          onUpdate() {
+            stage.camera.fov = from + (to - from) * dummy.t;
+            stage.camera.updateProjectionMatrix();
+          },
+        },
+        at,
+      );
+      break;
+    }
+    case 'move-along': {
+      const pts = withParams.points;
+      if (!Array.isArray(pts) || pts.length < 2) {
+        errors.push(err(`${path}/with/points`, 'move-along requires with.points: an array of at least 2 [x, y, z] points.'));
+        break;
+      }
+      const vecs = pts.map((p) => new THREE.Vector3(p[0], p[1], p[2]));
+      const closed = withParams.closed === true;
+      let curve;
+      if (vecs.length >= 3 && withParams.smooth !== false) {
+        curve = new THREE.CatmullRomCurve3(vecs, closed);
+      } else {
+        curve = new THREE.CurvePath();
+        const end = closed ? vecs.length : vecs.length - 1;
+        for (let i = 0; i < end; i++) {
+          curve.add(new THREE.LineCurve3(vecs[i], vecs[(i + 1) % vecs.length]));
+        }
+      }
+      const orient = withParams.orient === true;
+      for (const o of live3d) {
+        tl.to(
+          dummy,
+          {
+            t: 1,
+            duration: dur,
+            ease,
+            repeat,
+            yoyo,
+            stagger: cue.stagger ?? 0,
+            onUpdate() {
+              o.position.copy(curve.getPointAt(dummy.t));
+              if (orient) o.lookAt(curve.getPointAt((dummy.t + 0.01) % 1));
             },
           },
           at,
@@ -260,11 +397,11 @@ export function compileScore(stage, score) {
       return;
     }
     if (cue.at !== undefined && (typeof cue.at !== 'number' || cue.at < 0)) {
-      errors.push(err(`/score/${i}/at`, 'cue.at must be a number >= 0.'));
+      errors.push(err(`/score/${i}/at`, 'cue.at must be a number >= 0.', undefined, typeof cue.at === 'number' && cue.at < 0 ? [{ op: 'replace', path: `/score/${i}/at`, value: 0 }] : undefined));
       return;
     }
     if (cue.dur !== undefined && (typeof cue.dur !== 'number' || cue.dur < 0)) {
-      errors.push(err(`/score/${i}/dur`, 'cue.dur must be a number >= 0.'));
+      errors.push(err(`/score/${i}/dur`, 'cue.dur must be a number >= 0.', undefined, typeof cue.dur === 'number' && cue.dur < 0 ? [{ op: 'replace', path: `/score/${i}/dur`, value: 0 }] : undefined));
       return;
     }
     compileCue(stage, { ...cue, _i: i }, errors, warnings);

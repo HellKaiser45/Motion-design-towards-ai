@@ -30,9 +30,24 @@ export const MATERIAL_BUILDERS = Object.freeze({
     new THREE.MeshBasicMaterial({ color, opacity, transparent: opacity < 1, wireframe: true }),
 });
 
-export function buildMaterial(material) {
+export function buildMaterial(material, warnings = [], readiness = []) {
   const builder = MATERIAL_BUILDERS[material.preset] ?? MATERIAL_BUILDERS.standard;
   const opts = { color: material.color, opacity: material.opacity };
   if (material.preset === 'neon') opts.emissive = material.emissive;
+  if (material.map) {
+    if (typeof document === 'undefined') {
+      warnings.push(`material map "${material.map}" requires a DOM/WebGL environment; ignored headless`);
+    } else {
+      const tex = new THREE.TextureLoader().load(material.map);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      opts.map = tex;
+      // Resolves on load OR error so callers awaiting readiness never hang.
+      readiness.push(
+        new Promise((resolve) => {
+          new THREE.TextureLoader().load(material.map, () => resolve(), undefined, () => resolve());
+        }),
+      );
+    }
+  }
   return builder(opts);
 }

@@ -1,0 +1,2365 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-stage.dev/spec.schema.json",
+  "title": "agent-stage spec",
+  "description": "Declarative 3D/2D animation spec for agent-stage (three.js + GSAP).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Stage metadata.",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "background": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "void",
+                "dawn",
+                "night"
+              ],
+              "description": "Named background preset."
+            },
+            {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "description": "Color as '#rrggbb'."
+            }
+          ],
+          "description": "Background preset name or '#rrggbb'; default 'void'."
+        },
+        "fog": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Fog requires color, near and far together.",
+          "required": [
+            "color",
+            "near",
+            "far"
+          ],
+          "properties": {
+            "color": {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "description": "Color as '#rrggbb'."
+            },
+            "near": {
+              "type": "number"
+            },
+            "far": {
+              "type": "number"
+            }
+          }
+        },
+        "size": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Canvas size in pixels; default 1280x720.",
+          "properties": {
+            "width": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "height": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            }
+          }
+        },
+        "duration": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Scale the whole score to fit exactly this duration (seconds)."
+        }
+      }
+    },
+    "camera": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Camera setup.",
+      "properties": {
+        "fov": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 179,
+          "description": "Field of view; default 50."
+        },
+        "position": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "Array of exactly 3 finite numbers [x, y, z]."
+        },
+        "lookAt": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "Array of exactly 3 finite numbers [x, y, z]."
+        }
+      }
+    },
+    "display": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "How the canvas is mounted and fitted.",
+      "properties": {
+        "fit": {
+          "type": "string",
+          "enum": [
+            "cover",
+            "contain"
+          ]
+        },
+        "position": {
+          "type": "string",
+          "enum": [
+            "fixed",
+            "absolute"
+          ]
+        },
+        "mount": {
+          "type": "string",
+          "enum": [
+            "body",
+            "none"
+          ]
+        }
+      }
+    },
+    "lights": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/light"
+      }
+    },
+    "objects": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/objectDef"
+      }
+    },
+    "score": {
+      "$ref": "#/$defs/score"
+    },
+    "svg": {
+      "$ref": "#/$defs/svg"
+    },
+    "overlay": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Deprecated alias for svg; cannot be combined with svg.",
+      "properties": {
+        "fit": {
+          "type": "string",
+          "enum": [
+            "cover",
+            "contain"
+          ],
+          "description": "How the layer matches the canvas; default 'cover'."
+        },
+        "text": {
+          "type": "array",
+          "description": "SVG text items.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "content"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Unique DOM id for the text group."
+              },
+              "class": {
+                "type": "string"
+              },
+              "content": {
+                "type": "string",
+                "description": "Text content."
+              },
+              "split": {
+                "type": "string",
+                "enum": [
+                  "char",
+                  "word",
+                  "none"
+                ],
+                "description": "Split into chars/words; default 'none'."
+              },
+              "tag": {
+                "type": "string",
+                "enum": [
+                  "text",
+                  "tspan"
+                ],
+                "description": "Element per text unit; default 'text'."
+              },
+              "x": {
+                "type": "number",
+                "description": "Default 0."
+              },
+              "y": {
+                "type": "number",
+                "description": "Default 0."
+              },
+              "size": {
+                "type": "number",
+                "description": "Font-size; default 24."
+              },
+              "weight": {
+                "type": "number",
+                "description": "Font-weight; default 400."
+              },
+              "family": {
+                "type": "string",
+                "description": "Font-family; default sans-serif."
+              },
+              "color": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "description": "Color as '#rrggbb'."
+              },
+              "align": {
+                "type": "string",
+                "enum": [
+                  "start",
+                  "middle",
+                  "end"
+                ],
+                "description": "Text-anchor; default 'start'."
+              },
+              "opacity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        },
+        "shapes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/svgShape"
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "overlay"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "svg"
+          ]
+        }
+      },
+      "description": "\"overlay\" and \"svg\" are mutually exclusive aliases."
+    },
+    {
+      "if": {
+        "required": [
+          "svg"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "overlay"
+          ]
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "color": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$",
+      "description": "Color as '#rrggbb'."
+    },
+    "vec3": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3,
+      "description": "Array of exactly 3 finite numbers [x, y, z]."
+    },
+    "material": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Object material. emissive is only valid for the neon preset.",
+      "properties": {
+        "preset": {
+          "type": "string",
+          "enum": [
+            "basic",
+            "standard",
+            "neon",
+            "glass",
+            "metal",
+            "wire"
+          ],
+          "description": "Material preset; default standard."
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Color as '#rrggbb'."
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Material opacity; default 1."
+        },
+        "emissive": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Color as '#rrggbb'."
+        },
+        "map": {
+          "type": "string",
+          "pattern": "^(https?://|data:image/)",
+          "description": "Texture image URL (http(s):// or data:image/); applied in DOM/WebGL environments, ignored headless with a warning."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "preset": {
+                "const": "neon"
+              }
+            },
+            "required": [
+              "preset"
+            ]
+          },
+          "then": {
+            "properties": {
+              "emissive": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "description": "Color as '#rrggbb'."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "not": {
+              "properties": {
+                "preset": {
+                  "const": "neon"
+                }
+              },
+              "required": [
+                "preset"
+              ]
+            }
+          },
+          "then": {
+            "properties": {
+              "emissive": false
+            }
+          }
+        }
+      ]
+    },
+    "light": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Scene light. target is only valid for directional and spot lights.",
+      "required": [
+        "name",
+        "type"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique light name."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "ambient",
+            "directional",
+            "point",
+            "spot"
+          ],
+          "description": "Light type."
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Color as '#rrggbb'."
+        },
+        "intensity": {
+          "type": "number",
+          "description": "Light intensity; default 1."
+        },
+        "position": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "Array of exactly 3 finite numbers [x, y, z]."
+        },
+        "target": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "Array of exactly 3 finite numbers [x, y, z]."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "ambient"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "target": false
+            }
+          }
+        }
+      ]
+    },
+    "objectDef": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "3D object. params keys are gated per object type.",
+      "required": [
+        "name",
+        "type"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique object name."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "box",
+            "sphere",
+            "icosahedron",
+            "dodecahedron",
+            "torus",
+            "torusKnot",
+            "cone",
+            "cylinder",
+            "plane",
+            "ring"
+          ],
+          "description": "Geometry type."
+        },
+        "parent": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of another object in the spec to parent to; no cycles or self-reference."
+        },
+        "material": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Object material. emissive is only valid for the neon preset.",
+          "properties": {
+            "preset": {
+              "type": "string",
+              "enum": [
+                "basic",
+                "standard",
+                "neon",
+                "glass",
+                "metal",
+                "wire"
+              ],
+              "description": "Material preset; default standard."
+            },
+            "color": {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "description": "Color as '#rrggbb'."
+            },
+            "opacity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Material opacity; default 1."
+            },
+            "emissive": {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "description": "Color as '#rrggbb'."
+            },
+            "map": {
+              "type": "string",
+              "pattern": "^(https?://|data:image/)",
+              "description": "Texture image URL (http(s):// or data:image/); applied in DOM/WebGL environments, ignored headless with a warning."
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "preset": {
+                    "const": "neon"
+                  }
+                },
+                "required": [
+                  "preset"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "emissive": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-fA-F]{6}$",
+                    "description": "Color as '#rrggbb'."
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "not": {
+                  "properties": {
+                    "preset": {
+                      "const": "neon"
+                    }
+                  },
+                  "required": [
+                    "preset"
+                  ]
+                }
+              },
+              "then": {
+                "properties": {
+                  "emissive": false
+                }
+              }
+            }
+          ]
+        },
+        "position": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "Array of exactly 3 finite numbers [x, y, z]."
+        },
+        "rotation": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "Rotation in radians [x, y, z]."
+        },
+        "scale": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 3,
+              "maxItems": 3,
+              "description": "Array of exactly 3 finite numbers [x, y, z]."
+            }
+          ],
+          "description": "Uniform number or [x, y, z]."
+        },
+        "params": {
+          "type": "object",
+          "description": "Type-specific numbers; keys per object type."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "box"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Geometry params for box (all optional, numbers).",
+                "properties": {
+                  "width": {
+                    "type": "number"
+                  },
+                  "height": {
+                    "type": "number"
+                  },
+                  "depth": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "sphere"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Geometry params for sphere (all optional, numbers).",
+                "properties": {
+                  "radius": {
+                    "type": "number"
+                  },
+                  "widthSegments": {
+                    "type": "number"
+                  },
+                  "heightSegments": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "icosahedron"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Geometry params for icosahedron (all optional, numbers).",
+                "properties": {
+                  "radius": {
+                    "type": "number"
+                  },
+                  "detail": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "dodecahedron"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Geometry params for dodecahedron (all optional, numbers).",
+                "properties": {
+                  "radius": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "torus"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Geometry params for torus (all optional, numbers).",
+                "properties": {
+                  "radius": {
+                    "type": "number"
+                  },
+                  "tube": {
+                    "type": "number"
+                  },
+                  "radialSegments": {
+                    "type": "number"
+                  },
+                  "tubularSegments": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "torusKnot"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Geometry params for torusKnot (all optional, numbers).",
+                "properties": {
+                  "radius": {
+                    "type": "number"
+                  },
+                  "tube": {
+                    "type": "number"
+                  },
+                  "tubularSegments": {
+                    "type": "number"
+                  },
+                  "radialSegments": {
+                    "type": "number"
+                  },
+                  "p": {
+                    "type": "number"
+                  },
+                  "q": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "cone"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Geometry params for cone (all optional, numbers).",
+                "properties": {
+                  "radius": {
+                    "type": "number"
+                  },
+                  "height": {
+                    "type": "number"
+                  },
+                  "radialSegments": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "cylinder"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Geometry params for cylinder (all optional, numbers).",
+                "properties": {
+                  "radiusTop": {
+                    "type": "number"
+                  },
+                  "radiusBottom": {
+                    "type": "number"
+                  },
+                  "height": {
+                    "type": "number"
+                  },
+                  "radialSegments": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "plane"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Geometry params for plane (all optional, numbers).",
+                "properties": {
+                  "width": {
+                    "type": "number"
+                  },
+                  "height": {
+                    "type": "number"
+                  },
+                  "widthSegments": {
+                    "type": "number"
+                  },
+                  "heightSegments": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "ring"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Geometry params for ring (all optional, numbers).",
+                "properties": {
+                  "innerRadius": {
+                    "type": "number"
+                  },
+                  "outerRadius": {
+                    "type": "number"
+                  },
+                  "thetaSegments": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "score": {
+      "type": "array",
+      "description": "Flat array of animation cues, sequenced via id/after/alongside/offset.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "do",
+          "to"
+        ],
+        "properties": {
+          "do": {
+            "type": "string",
+            "enum": [
+              "move-to",
+              "rotate",
+              "scale-to",
+              "spin",
+              "fade",
+              "color-to",
+              "animate",
+              "look-at",
+              "orbit",
+              "dolly",
+              "zoom",
+              "move-along",
+              "entrance",
+              "exit",
+              "pop",
+              "emphasis",
+              "pulse",
+              "float",
+              "flip",
+              "shake",
+              "orbit",
+              "reveal-text"
+            ],
+            "description": "Animation verb or intent preset name."
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "minItems": 1
+              }
+            ],
+            "description": "Object/light name, camera, scene, DOM selector, or array of names (staggered)."
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Unique cue id, addressable by after/alongside."
+          },
+          "after": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Start when the referenced cue ends; mutually exclusive with at."
+          },
+          "alongside": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Start when the referenced cue starts; mutually exclusive with at."
+          },
+          "offset": {
+            "type": "number",
+            "description": "Seconds added to the resolved start; default 0."
+          },
+          "at": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Start time in seconds; default 0."
+          },
+          "dur": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Duration in seconds; default 1."
+          },
+          "stagger": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Stagger in seconds when to is an array."
+          },
+          "ease": {
+            "type": "string",
+            "enum": [
+              "linear",
+              "none",
+              "steps",
+              "power1",
+              "power1.in",
+              "power1.out",
+              "power1.inOut",
+              "power2",
+              "power2.in",
+              "power2.out",
+              "power2.inOut",
+              "power3",
+              "power3.in",
+              "power3.out",
+              "power3.inOut",
+              "power4",
+              "power4.in",
+              "power4.out",
+              "power4.inOut",
+              "sine",
+              "sine.in",
+              "sine.out",
+              "sine.inOut",
+              "expo",
+              "expo.in",
+              "expo.out",
+              "expo.inOut",
+              "circ",
+              "circ.in",
+              "circ.out",
+              "circ.inOut",
+              "back",
+              "back.out",
+              "back.inOut",
+              "elastic",
+              "elastic.out",
+              "elastic.inOut",
+              "bounce",
+              "bounce.out",
+              "bounce.inOut"
+            ],
+            "description": "Ease token; default power1.out."
+          },
+          "repeat": {
+            "type": "integer",
+            "minimum": -1,
+            "description": "Repeats; -1 or values above the cap are clamped."
+          },
+          "pingpong": {
+            "type": "boolean",
+            "description": "Reverse on repeat (GSAP yoyo)."
+          },
+          "with": {
+            "type": "object",
+            "description": "Verb/preset params."
+          },
+          "from": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "x": {
+                "type": "number",
+                "description": "position.x, world units"
+              },
+              "y": {
+                "type": "number",
+                "description": "position.y, world units"
+              },
+              "z": {
+                "type": "number",
+                "description": "position.z, world units"
+              },
+              "rotateX": {
+                "type": "number",
+                "description": "rotation.x, radians"
+              },
+              "rotateY": {
+                "type": "number",
+                "description": "rotation.y, radians"
+              },
+              "rotateZ": {
+                "type": "number",
+                "description": "rotation.z, radians"
+              },
+              "scale": {
+                "type": "number",
+                "description": "uniform scale; sets scale.x/y/z"
+              },
+              "scaleX": {
+                "type": "number",
+                "description": "scale.x"
+              },
+              "scaleY": {
+                "type": "number",
+                "description": "scale.y"
+              },
+              "scaleZ": {
+                "type": "number",
+                "description": "scale.z"
+              },
+              "opacity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "description": "animate only: starting bridge-prop values before the tween."
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "move-to"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "z": {
+                      "type": "number"
+                    }
+                  },
+                  "description": "move-to params: x, y, z."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "rotate"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "z": {
+                      "type": "number"
+                    }
+                  },
+                  "description": "rotate params: x, y, z."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "scale-to"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "z": {
+                      "type": "number"
+                    }
+                  },
+                  "description": "scale-to params: x, y, z."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "spin"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "axis": {
+                      "type": "string",
+                      "enum": [
+                        "x",
+                        "y",
+                        "z"
+                      ]
+                    },
+                    "speed": {
+                      "type": "number",
+                      "description": "Radians per second."
+                    }
+                  },
+                  "description": "Continuous spin params."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "fade"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "opacity": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "description": "Target opacity 0..1."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "color-to"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "hex": {
+                      "type": "string",
+                      "pattern": "^#[0-9a-fA-F]{6}$",
+                      "description": "Color as '#rrggbb'."
+                    }
+                  },
+                  "description": "Target color as hex."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "animate"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "minProperties": 1,
+                  "properties": {
+                    "x": {
+                      "type": "number",
+                      "description": "position.x, world units"
+                    },
+                    "y": {
+                      "type": "number",
+                      "description": "position.y, world units"
+                    },
+                    "z": {
+                      "type": "number",
+                      "description": "position.z, world units"
+                    },
+                    "rotateX": {
+                      "type": "number",
+                      "description": "rotation.x, radians"
+                    },
+                    "rotateY": {
+                      "type": "number",
+                      "description": "rotation.y, radians"
+                    },
+                    "rotateZ": {
+                      "type": "number",
+                      "description": "rotation.z, radians"
+                    },
+                    "scale": {
+                      "type": "number",
+                      "description": "uniform scale; sets scale.x/y/z"
+                    },
+                    "scaleX": {
+                      "type": "number",
+                      "description": "scale.x"
+                    },
+                    "scaleY": {
+                      "type": "number",
+                      "description": "scale.y"
+                    },
+                    "scaleZ": {
+                      "type": "number",
+                      "description": "scale.z"
+                    },
+                    "opacity": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "look-at"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    },
+                    "z": {
+                      "type": "number"
+                    },
+                    "target": {
+                      "type": "string",
+                      "description": "Object name to look at."
+                    }
+                  },
+                  "description": "Look-at point and/or object name."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "orbit"
+                },
+                "to": {
+                  "const": "camera"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "to"
+                  ],
+                  "properties": {
+                    "center": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 3,
+                      "maxItems": 3,
+                      "description": "Array of exactly 3 finite numbers [x, y, z]."
+                    },
+                    "from": {
+                      "type": "number",
+                      "description": "Start angle in radians; default atan2 of camera position vs center."
+                    },
+                    "to": {
+                      "type": "number",
+                      "description": "End angle in radians."
+                    },
+                    "radius": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Circle radius; default distance from camera to center."
+                    },
+                    "height": {
+                      "type": "number",
+                      "description": "Camera height; default camera y."
+                    }
+                  },
+                  "description": "Camera orbit around center in the XZ plane."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "dolly"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "to"
+                  ],
+                  "properties": {
+                    "center": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 3,
+                      "maxItems": 3,
+                      "description": "Array of exactly 3 finite numbers [x, y, z]."
+                    },
+                    "from": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "Start distance; default current distance."
+                    },
+                    "to": {
+                      "type": "number",
+                      "exclusiveMinimum": 0,
+                      "description": "End distance."
+                    }
+                  },
+                  "description": "Camera dolly along the direction from center to the camera."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "zoom"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "to"
+                  ],
+                  "properties": {
+                    "from": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 179,
+                      "description": "Start fov; default camera fov."
+                    },
+                    "to": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 179,
+                      "description": "End fov."
+                    }
+                  },
+                  "description": "Camera field-of-view change in degrees."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "move-along"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "points"
+                  ],
+                  "properties": {
+                    "points": {
+                      "type": "array",
+                      "minItems": 2,
+                      "items": {
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        },
+                        "minItems": 3,
+                        "maxItems": 3,
+                        "description": "Array of exactly 3 finite numbers [x, y, z]."
+                      },
+                      "description": "Path waypoints [x, y, z]."
+                    },
+                    "smooth": {
+                      "type": "boolean",
+                      "description": "Catmull-Rom smoothing when >= 3 points; default true."
+                    },
+                    "closed": {
+                      "type": "boolean",
+                      "description": "Close the curve back to the first point; default false."
+                    },
+                    "orient": {
+                      "type": "boolean",
+                      "description": "Look along the path direction while moving; default false."
+                    }
+                  },
+                  "description": "Motion along a path."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "entrance"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "distance": {
+                      "type": "number",
+                      "description": "Distance in world units; default 3."
+                    },
+                    "from": {
+                      "type": "string",
+                      "enum": [
+                        "below",
+                        "above",
+                        "left",
+                        "right",
+                        "front",
+                        "back"
+                      ],
+                      "description": "Start direction; default 'below'."
+                    }
+                  },
+                  "description": "Params for the \"entrance\" preset."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "exit"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "distance": {
+                      "type": "number",
+                      "description": "Distance in world units; default 3."
+                    },
+                    "to": {
+                      "type": "string",
+                      "enum": [
+                        "below",
+                        "above",
+                        "left",
+                        "right",
+                        "front",
+                        "back"
+                      ],
+                      "description": "End direction; default 'below'."
+                    }
+                  },
+                  "description": "Params for the \"exit\" preset."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "pop"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {},
+                  "description": "Params for the \"pop\" preset."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "emphasis"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "amount": {
+                      "type": "number",
+                      "description": "Scale multiplier; default 1.35."
+                    }
+                  },
+                  "description": "Params for the \"emphasis\" preset."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "pulse"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "amount": {
+                      "type": "number",
+                      "description": "Scale multiplier; default 1.08."
+                    },
+                    "count": {
+                      "type": "number",
+                      "description": "Pulse cycles; default 3."
+                    }
+                  },
+                  "description": "Params for the \"pulse\" preset."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "float"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "height": {
+                      "type": "number",
+                      "description": "World units; default 0.4."
+                    },
+                    "count": {
+                      "type": "number",
+                      "description": "Float cycles; default 2."
+                    }
+                  },
+                  "description": "Params for the \"float\" preset."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "flip"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "axis": {
+                      "type": "string",
+                      "enum": [
+                        "x",
+                        "y"
+                      ],
+                      "description": "Rotation axis; default 'y'."
+                    },
+                    "turns": {
+                      "type": "number",
+                      "description": "Full turns; default 1."
+                    }
+                  },
+                  "description": "Params for the \"flip\" preset."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "shake"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "intensity": {
+                      "type": "number",
+                      "description": "World units; default 0.3."
+                    },
+                    "count": {
+                      "type": "number",
+                      "description": "Number of shakes; default 6."
+                    }
+                  },
+                  "description": "Params for the \"shake\" preset."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "orbit"
+                },
+                "to": {
+                  "not": {
+                    "const": "camera"
+                  }
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "center": {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 3,
+                      "maxItems": 3,
+                      "description": "Array of exactly 3 finite numbers [x, y, z]."
+                    },
+                    "radius": {
+                      "type": "number",
+                      "description": "World units; default 3."
+                    },
+                    "revolutions": {
+                      "type": "number",
+                      "description": "Revolutions; default 1."
+                    },
+                    "steps": {
+                      "type": "number",
+                      "description": "Keyframes on the circle; default 16."
+                    }
+                  },
+                  "description": "Params for the \"orbit\" preset."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "reveal-text"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "with": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "of": {
+                      "type": "string",
+                      "enum": [
+                        "chars",
+                        "words"
+                      ],
+                      "description": "Reveal unit; default 'chars'."
+                    },
+                    "stagger": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Seconds per item; default 0.03."
+                    }
+                  },
+                  "description": "Params for the \"reveal-text\" preset."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "enum": [
+                    "entrance",
+                    "exit",
+                    "pop",
+                    "emphasis",
+                    "pulse",
+                    "float",
+                    "flip",
+                    "shake",
+                    "orbit",
+                    "reveal-text"
+                  ]
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "repeat": false,
+                "pingpong": false,
+                "from": false
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "dolly"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "to": {
+                  "const": "camera",
+                  "description": "Camera verbs only target 'camera'."
+                },
+                "from": false
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "zoom"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "to": {
+                  "const": "camera",
+                  "description": "Camera verbs only target 'camera'."
+                },
+                "from": false
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "do": {
+                  "const": "orbit"
+                },
+                "to": {
+                  "const": "camera"
+                }
+              },
+              "required": [
+                "do"
+              ]
+            },
+            "then": {
+              "properties": {
+                "from": false
+              }
+            }
+          }
+        ]
+      }
+    },
+    "svg": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "2D SVG overlay layer. \"overlay\" is accepted as an alias at the spec root.",
+      "properties": {
+        "fit": {
+          "type": "string",
+          "enum": [
+            "cover",
+            "contain"
+          ],
+          "description": "How the layer matches the canvas; default 'cover'."
+        },
+        "text": {
+          "type": "array",
+          "description": "SVG text items.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "content"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Unique DOM id for the text group."
+              },
+              "class": {
+                "type": "string"
+              },
+              "content": {
+                "type": "string",
+                "description": "Text content."
+              },
+              "split": {
+                "type": "string",
+                "enum": [
+                  "char",
+                  "word",
+                  "none"
+                ],
+                "description": "Split into chars/words; default 'none'."
+              },
+              "tag": {
+                "type": "string",
+                "enum": [
+                  "text",
+                  "tspan"
+                ],
+                "description": "Element per text unit; default 'text'."
+              },
+              "x": {
+                "type": "number",
+                "description": "Default 0."
+              },
+              "y": {
+                "type": "number",
+                "description": "Default 0."
+              },
+              "size": {
+                "type": "number",
+                "description": "Font-size; default 24."
+              },
+              "weight": {
+                "type": "number",
+                "description": "Font-weight; default 400."
+              },
+              "family": {
+                "type": "string",
+                "description": "Font-family; default sans-serif."
+              },
+              "color": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "description": "Color as '#rrggbb'."
+              },
+              "align": {
+                "type": "string",
+                "enum": [
+                  "start",
+                  "middle",
+                  "end"
+                ],
+                "description": "Text-anchor; default 'start'."
+              },
+              "opacity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          }
+        },
+        "shapes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/svgShape"
+          }
+        }
+      }
+    },
+    "svgShape": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "SVG shape. Geometry keys are gated per type; group children may nest (limited to 8 levels).",
+      "required": [
+        "id",
+        "type"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique DOM id for the shape element."
+        },
+        "class": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "rect",
+            "circle",
+            "line",
+            "path",
+            "group"
+          ],
+          "description": "Shape type."
+        },
+        "stroke": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Color as '#rrggbb'."
+        },
+        "fill": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "description": "Color as '#rrggbb'."
+            },
+            {
+              "const": "none"
+            }
+          ],
+          "description": "'#rrggbb' or 'none'."
+        },
+        "strokeWidth": {
+          "type": "number"
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/svgShape"
+          },
+          "description": "Only for type group."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "rect"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "width": {
+                "type": "number"
+              },
+              "height": {
+                "type": "number"
+              },
+              "rx": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "circle"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "cx": {
+                "type": "number"
+              },
+              "cy": {
+                "type": "number"
+              },
+              "r": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "line"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "x1": {
+                "type": "number"
+              },
+              "y1": {
+                "type": "number"
+              },
+              "x2": {
+                "type": "number"
+              },
+              "y2": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "path"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "d": {
+                "type": "string",
+                "description": "SVG path data."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "group"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "children": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/svgShape"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "id": "base1-4",
+  "name": "Charizard",
+  "hp": 120,
+  "types": ["Fire"],
+  "images": {
+    "small": "https://images.pokemontcg.io/base1/4.png",
+    "large": "https://images.pokemontcg.io/base1/4_hires.png"
+  },
+  "attacks": [
+    { "name": "Energy Burn", "cost": ["Fire"], "convertedCost": 1, "damage": "30" },
+    {
+      "name": "Fire Spin",
+      "cost": ["Fire", "Fire", "Fire", "Fire"],
+      "convertedCost": 4,
+      "damage": "100",
+      "text": "Discard 2 Energy attached to Charizard."
+    }
+  ],
+  "weaknesses": [{ "type": "Water", "value": "×2" }],
+  "retreatCost": 3,
+  "number": "4/102",
+  "rarity": "Holo Rare",
+  "artist": "Mitsuhiro Arita",
+  "set": { "id": "base1", "name": "Base", "series": "Base" }
+}

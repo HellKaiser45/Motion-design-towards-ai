@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Pokemon card — 3D card demo</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.186.1/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.186.1/examples/jsm/",
+          "gsap": "https://unpkg.com/gsap@3.15.0/index.js",
+          "agent-stage": "../src/index.js",
+          "agent-stage/export": "../src/export/renderSchedule.js"
+        }
+      }
+    </script>
+    <style>
+      body { margin: 0; background: #07080f; color: #e2e8f0; font-family: system-ui, sans-serif; overflow: hidden; }
+      canvas { display: block; }
+      .chip {
+        position: fixed; top: 12px; left: 12px; z-index: 10;
+        background: rgba(15, 18, 30, 0.85); border: 1px solid #334155; border-radius: 6px;
+        padding: 6px 10px; font-size: 12px; letter-spacing: 0.04em;
+      }
+      .chip b { color: #f8d030; }
+      .panel {
+        position: fixed; top: 12px; right: 12px; z-index: 10;
+        display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+        pointer-events: auto;
+      }
+      button {
+        background: rgba(15, 18, 30, 0.85); border: 1px solid #334155; color: #e2e8f0;
+        border-radius: 6px; padding: 6px 14px; font-size: 13px; cursor: pointer;
+      }
+      button:hover { border-color: #f8d030; }
+      #strip { display: flex; gap: 4px; flex-wrap: wrap; max-width: 70vw; }
+      #strip img { width: 160px; border: 1px solid #334155; border-radius: 4px; }
+      #report {
+        background: rgba(15, 18, 30, 0.92); border: 1px solid #334155; border-radius: 6px;
+        padding: 10px 14px; font-size: 12px; max-width: 420px; white-space: pre-wrap;
+      }
+      .hidden { display: none; }
+    </style>
+  </head>
+  <body>
+    <div class="chip" id="chip">LOADING…</div>
+    <div class="panel">
+      <div>
+        <button id="replay">Replay</button>
+        <button id="filmstrip">Filmstrip</button>
+        <button id="reportBtn">Report</button>
+      </div>
+      <div id="strip" class="hidden"></div>
+      <div id="report" class="hidden"></div>
+    </div>
+    <script type="module">
+      import { createStage, reportSpec } from 'agent-stage';
+      import { filmstripTimes } from 'agent-stage/export';
+      import { buildPokemonCardSpec, normalizeCard } from './pokemon-card-builder.js';
+
+      const chip = document.getElementById('chip');
+
+      async function loadCard() {
+        try {
+          const res = await fetch('https://api.pokemontcg.io/v2/cards/base1-4', {
+            headers: { Accept: 'application/json' },
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const json = await res.json();
+          return { card: json.data ?? json, live: true };
+        } catch {
+          const res = await fetch('./pokemon-card.fixture.json');
+          return { card: await res.json(), live: false };
+        }
+      }
+
+      const { card, live } = await loadCard();
+      const normalized = normalizeCard(card);
+      chip.innerHTML = live
+        ? `LIVE · api.pokemontcg.io · <b>${normalized.name}</b>`
+        : `FALLBACK · fixture · <b>${normalized.name}</b>`;
+
+      const spec = buildPokemonCardSpec(normalized);
+      const stage = createStage(spec);
+      if (!stage.ok) throw new Error(JSON.stringify(stage.errors));
+      await stage.whenReady();
+      stage.play();
+
+      document.getElementById('replay').onclick = () => {
+        stage.seek(0);
+        stage.play();
+      };
+
+      document.getElementById('filmstrip').onclick = () => {
+        const strip = document.getElementById('strip');
+        strip.classList.remove('hidden');
+        strip.innerHTML = '';
+        const duration = stage.timeline.duration();
+        for (const t of filmstripTimes({ duration, count: 8 })) {
+          const img = document.createElement('img');
+          img.src = stage.captureFrame(t);
+          img.alt = `t=${t.toFixed(2)}s`;
+          strip.appendChild(img);
+        }
+      };
+
+      document.getElementById('reportBtn').onclick = () => {
+        const panel = document.getElementById('report');
+        panel.classList.remove('hidden');
+        const r = reportSpec(spec, { samples: 8 });
+        const lines = [
+          `duration: ${r.duration}s`,
+          `ok: ${r.ok}`,
+          r.issues.length === 0
+            ? 'issues: none — clean verdict'
+            : `issues (${r.issues.length}):`,
+          ...r.issues.map((i) => `  [${i.kind}] ${i.message}`),
+        ];
+        panel.textContent = lines.join('\n');
+      };
+    </script>
+  </body>
+</html>

@@ -21,6 +21,7 @@ export {
 
 export {
   SCORE_VERBS,
+  SCORE_PRESETS,
   SCORE_EASES,
   SCORE_DEFAULTS,
   SCORE_REPEAT_CAP,
@@ -29,7 +30,11 @@ export {
 } from './spec/schema.js';
 
 export { validateSpec, normalizeSpec } from './spec/validate.js';
+export { applyErrorPatches } from './spec/repair.js';
+export { buildJsonSchema } from './spec/jsonSchema.js';
 export { compileScore } from './score/compile.js';
+export { expandScore } from './score/expand.js';
 export { createBridge } from './bridge/createBridge.js';
 export { createStage } from './stage/createStage.js';
+export { reportSpec } from './report/report.js';
 export { createOverlay, splitChars, splitWords } from './svg/createOverlay.js';

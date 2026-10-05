@@ -109,6 +109,7 @@ function applyTextStyle(el, item) {
     'font-family': item.family,
     fill: item.color,
     'text-anchor': item.align,
+    opacity: item.opacity ?? 1,
   });
 }
 
@@ -201,6 +202,7 @@ export function createOverlay(stage, svgSpec) {
       stroke: shape.stroke,
       fill: shape.fill,
       'stroke-width': shape.strokeWidth,
+      opacity: shape.opacity ?? 1,
     });
   }
 
